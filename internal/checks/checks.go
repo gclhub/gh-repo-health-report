@@ -8,17 +8,17 @@ import (
 
 // Check name constants.
 const (
-	CheckHasDescription  = "has-description"
-	CheckHasHomepage     = "has-homepage"
-	CheckHasReadme       = "missing-readme"
-	CheckHasLicense      = "missing-license"
-	CheckHasCodeowners   = "missing-codeowners"
-	CheckHasSecurityMd   = "missing-security"
-	CheckHasContributing = "missing-contributing"
-	CheckStale           = "stale"
-	CheckHasIssues       = "has-issues"
-	CheckHasProjects     = "has-projects"
-	CheckHasWiki         = "has-wiki"
+	CheckHasDescription      = "has-description"
+	CheckHasHomepage         = "has-homepage"
+	CheckMissingReadme       = "missing-readme"
+	CheckMissingLicense      = "missing-license"
+	CheckMissingCodeowners   = "missing-codeowners"
+	CheckMissingSecurityMd   = "missing-security"
+	CheckMissingContributing = "missing-contributing"
+	CheckStale               = "stale"
+	CheckHasIssues           = "has-issues"
+	CheckHasProjects         = "has-projects"
+	CheckHasWiki             = "has-wiki"
 )
 
 // Options configures the health checks.
@@ -80,19 +80,19 @@ func Evaluate(repo *api.Repository, opts Options) *Result {
 		r.FailedChecks = append(r.FailedChecks, CheckHasHomepage)
 	}
 	if !r.HasReadme {
-		r.FailedChecks = append(r.FailedChecks, CheckHasReadme)
+		r.FailedChecks = append(r.FailedChecks, CheckMissingReadme)
 	}
 	if !r.HasLicense {
-		r.FailedChecks = append(r.FailedChecks, CheckHasLicense)
+		r.FailedChecks = append(r.FailedChecks, CheckMissingLicense)
 	}
 	if !r.HasCodeowners {
-		r.FailedChecks = append(r.FailedChecks, CheckHasCodeowners)
+		r.FailedChecks = append(r.FailedChecks, CheckMissingCodeowners)
 	}
 	if !r.HasSecurity {
-		r.FailedChecks = append(r.FailedChecks, CheckHasSecurityMd)
+		r.FailedChecks = append(r.FailedChecks, CheckMissingSecurityMd)
 	}
 	if !r.HasContributing {
-		r.FailedChecks = append(r.FailedChecks, CheckHasContributing)
+		r.FailedChecks = append(r.FailedChecks, CheckMissingContributing)
 	}
 	if !r.HasIssues {
 		r.FailedChecks = append(r.FailedChecks, CheckHasIssues)

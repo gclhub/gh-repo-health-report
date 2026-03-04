@@ -61,7 +61,7 @@ func (c *Client) GetRepo(owner, name string) (*Repository, error) {
 	return &repo, nil
 }
 
-// ListOrgRepos lists all repos in an organisation, handling pagination.
+// ListOrgRepos lists all repos in an organization, handling pagination.
 func (c *Client) ListOrgRepos(org string, includeForks, includeArchived bool) ([]*Repository, error) {
 	return c.listRepos(fmt.Sprintf("orgs/%s/repos", org), includeForks, includeArchived)
 }

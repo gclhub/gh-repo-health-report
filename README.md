@@ -11,7 +11,7 @@ gh extension install gclhub/gh-repo-health-report
 ## Usage
 
 ```bash
-# Audit all repos in an organisation
+# Audit all repos in an organization
 gh repo-health-report --org myorg
 
 # Audit all repos for a user
@@ -34,7 +34,7 @@ gh repo-health-report --org myorg --fail-on missing-readme,missing-license
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--org` | | Organisation to audit |
+| `--org` | | Organization to audit |
 | `--owner` | | User to audit |
 | `--repo` | | Specific repo(s) in `owner/name` format (repeatable) |
 | `--include-forks` | false | Include forked repos |

@@ -85,11 +85,11 @@ func TestEvaluate_MissingFiles(t *testing.T) {
 	result := checks.Evaluate(repo, opts)
 
 	for _, check := range []string{
-		checks.CheckHasReadme,
-		checks.CheckHasLicense,
-		checks.CheckHasCodeowners,
-		checks.CheckHasSecurityMd,
-		checks.CheckHasContributing,
+		checks.CheckMissingReadme,
+		checks.CheckMissingLicense,
+		checks.CheckMissingCodeowners,
+		checks.CheckMissingSecurityMd,
+		checks.CheckMissingContributing,
 	} {
 		if !contains(result.FailedChecks, check) {
 			t.Errorf("expected %s in FailedChecks, got %v", check, result.FailedChecks)
