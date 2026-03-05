@@ -10,20 +10,23 @@ import (
 
 func baseRepo() *api.Repository {
 	return &api.Repository{
-		FullName:           "owner/repo",
-		Name:               "repo",
-		Description:        "a description",
-		Homepage:           "https://example.com",
-		Topics:             []string{"go", "cli"},
-		PushedAt:           time.Now().Add(-10 * 24 * time.Hour),
-		HasIssuesEnabled:   true,
-		HasProjectsEnabled: true,
-		HasWikiEnabled:     true,
-		HasReadme:          true,
-		HasLicense:         true,
-		HasCodeowners:      true,
-		HasSecurity:        true,
-		HasContributing:    true,
+		FullName:               "owner/repo",
+		Name:                   "repo",
+		Description:            "a description",
+		Homepage:               "https://example.com",
+		Topics:                 []string{"go", "cli"},
+		PushedAt:               time.Now().Add(-10 * 24 * time.Hour),
+		HasIssuesEnabled:       true,
+		HasProjectsEnabled:     true,
+		HasWikiEnabled:         true,
+		HasReadme:              true,
+		HasLicense:             true,
+		HasCodeowners:          true,
+		HasSecurity:            true,
+		HasContributing:        true,
+		HasDependabot:          true,
+		HasCIWorkflows:         true,
+		DefaultBranchProtected: true,
 	}
 }
 
@@ -119,6 +122,59 @@ func TestEvaluate_TopicsCount(t *testing.T) {
 
 	if result.TopicsCount != 3 {
 		t.Errorf("expected TopicsCount=3, got %d", result.TopicsCount)
+	}
+}
+
+func TestEvaluate_ExtendedChecks_AllPresent(t *testing.T) {
+	repo := baseRepo()
+	opts := checks.Options{Since: 180 * 24 * time.Hour}
+	result := checks.Evaluate(repo, opts)
+
+	if !result.HasDependabot {
+		t.Error("expected HasDependabot")
+	}
+	if !result.HasCIWorkflows {
+		t.Error("expected HasCIWorkflows")
+	}
+	if !result.DefaultBranchProtected {
+		t.Error("expected DefaultBranchProtected")
+	}
+	if len(result.FailedChecks) != 0 {
+		t.Errorf("expected no failed checks for healthy repo, got %v", result.FailedChecks)
+	}
+}
+
+func TestEvaluate_ExtendedChecks_Missing(t *testing.T) {
+	repo := baseRepo()
+	repo.HasDependabot = false
+	repo.HasCIWorkflows = false
+	repo.DefaultBranchProtected = false
+	opts := checks.Options{Since: 180 * 24 * time.Hour}
+	result := checks.Evaluate(repo, opts)
+
+	for _, check := range []string{
+		checks.CheckMissingDependabot,
+		checks.CheckMissingCI,
+		checks.CheckNoBranchProtection,
+	} {
+		if !contains(result.FailedChecks, check) {
+			t.Errorf("expected %s in FailedChecks, got %v", check, result.FailedChecks)
+		}
+	}
+}
+
+func TestEvaluate_OpenIssueCountAndSize(t *testing.T) {
+	repo := baseRepo()
+	repo.OpenIssueCount = 42
+	repo.SizeKB = 8192
+	opts := checks.Options{Since: 180 * 24 * time.Hour}
+	result := checks.Evaluate(repo, opts)
+
+	if result.OpenIssueCount != 42 {
+		t.Errorf("expected OpenIssueCount=42, got %d", result.OpenIssueCount)
+	}
+	if result.SizeKB != 8192 {
+		t.Errorf("expected SizeKB=8192, got %d", result.SizeKB)
 	}
 }
 

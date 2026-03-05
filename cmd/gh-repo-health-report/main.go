@@ -92,6 +92,9 @@ func rootCmd() *cobra.Command {
 				if err := client.PopulateFileChecks(repo); err != nil {
 					return fmt.Errorf("failed to check files for %s: %w", repo.FullName, err)
 				}
+				if err := client.PopulateExtendedChecks(repo); err != nil {
+					return fmt.Errorf("failed to run extended checks for %s: %w", repo.FullName, err)
+				}
 				results = append(results, checks.Evaluate(repo, opts))
 			}
 

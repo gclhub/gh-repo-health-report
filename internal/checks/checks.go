@@ -19,6 +19,10 @@ const (
 	CheckHasIssues           = "has-issues"
 	CheckHasProjects         = "has-projects"
 	CheckHasWiki             = "has-wiki"
+	// Extended checks
+	CheckMissingDependabot  = "missing-dependabot"
+	CheckMissingCI          = "missing-ci"
+	CheckNoBranchProtection = "no-branch-protection"
 )
 
 // Options configures the health checks.
@@ -41,24 +45,35 @@ type Result struct {
 	HasIssues       bool
 	HasProjects     bool
 	HasWiki         bool
-	FailedChecks    []string
+	// Extended check results
+	OpenIssueCount         int
+	SizeKB                 int
+	HasDependabot          bool
+	HasCIWorkflows         bool
+	DefaultBranchProtected bool
+	FailedChecks           []string
 }
 
 // Evaluate runs all health checks against a repository.
 func Evaluate(repo *api.Repository, opts Options) *Result {
 	r := &Result{
-		Repository:      repo,
-		HasDescription:  repo.Description != "",
-		HasHomepage:     repo.Homepage != "",
-		TopicsCount:     len(repo.Topics),
-		HasReadme:       repo.HasReadme,
-		HasLicense:      repo.HasLicense,
-		HasCodeowners:   repo.HasCodeowners,
-		HasSecurity:     repo.HasSecurity,
-		HasContributing: repo.HasContributing,
-		HasIssues:       repo.HasIssuesEnabled,
-		HasProjects:     repo.HasProjectsEnabled,
-		HasWiki:         repo.HasWikiEnabled,
+		Repository:             repo,
+		HasDescription:         repo.Description != "",
+		HasHomepage:            repo.Homepage != "",
+		TopicsCount:            len(repo.Topics),
+		HasReadme:              repo.HasReadme,
+		HasLicense:             repo.HasLicense,
+		HasCodeowners:          repo.HasCodeowners,
+		HasSecurity:            repo.HasSecurity,
+		HasContributing:        repo.HasContributing,
+		HasIssues:              repo.HasIssuesEnabled,
+		HasProjects:            repo.HasProjectsEnabled,
+		HasWiki:                repo.HasWikiEnabled,
+		OpenIssueCount:         repo.OpenIssueCount,
+		SizeKB:                 repo.SizeKB,
+		HasDependabot:          repo.HasDependabot,
+		HasCIWorkflows:         repo.HasCIWorkflows,
+		DefaultBranchProtected: repo.DefaultBranchProtected,
 	}
 
 	threshold := opts.Since
@@ -102,6 +117,15 @@ func Evaluate(repo *api.Repository, opts Options) *Result {
 	}
 	if !r.HasWiki {
 		r.FailedChecks = append(r.FailedChecks, CheckHasWiki)
+	}
+	if !r.HasDependabot {
+		r.FailedChecks = append(r.FailedChecks, CheckMissingDependabot)
+	}
+	if !r.HasCIWorkflows {
+		r.FailedChecks = append(r.FailedChecks, CheckMissingCI)
+	}
+	if !r.DefaultBranchProtected {
+		r.FailedChecks = append(r.FailedChecks, CheckNoBranchProtection)
 	}
 
 	return r

@@ -46,13 +46,13 @@ gh repo-health-report --org myorg --fail-on missing-readme,missing-license
 
 ## Check names
 
-`missing-readme`, `missing-license`, `missing-codeowners`, `missing-security`, `missing-contributing`, `stale`, `has-description`, `has-homepage`, `has-issues`, `has-projects`, `has-wiki`
+`missing-readme`, `missing-license`, `missing-codeowners`, `missing-security`, `missing-contributing`, `stale`, `has-description`, `has-homepage`, `has-issues`, `has-projects`, `has-wiki`, `missing-dependabot`, `missing-ci`, `no-branch-protection`
 
 ## Example output (table)
 
 ```
-REPO              STALE  DESCRIPTION  TOPICS  README  LICENSE  CODEOWNERS  SECURITY  CONTRIBUTING  ISSUES  WIKI  PROJECTS
-owner/my-project  NO     ✓            3       ✓       ✓        ✗           ✗         ✗             ✓       ✓     ✗
+REPO              STALE  DESCRIPTION  TOPICS  README  LICENSE  CODEOWNERS  SECURITY  CONTRIBUTING  ISSUES  WIKI  PROJECTS  DEPENDABOT  CI  BR_PROTECT  OPEN_ISSUES  SIZE_KB
+owner/my-project  NO     ✓            3       ✓       ✓        ✗           ✗         ✗             ✓       ✓     ✗         ✓           ✓   ✗           12           4096
 ```
 
-Columns: **REPO**, **STALE**, **DESCRIPTION**, **TOPICS**, **README**, **LICENSE**, **CODEOWNERS**, **SECURITY**, **CONTRIBUTING**, **ISSUES**, **WIKI**, **PROJECTS**
+Columns: **REPO**, **STALE**, **DESCRIPTION**, **TOPICS**, **README**, **LICENSE**, **CODEOWNERS**, **SECURITY**, **CONTRIBUTING**, **ISSUES**, **WIKI**, **PROJECTS**, **DEPENDABOT**, **CI**, **BR_PROTECT** (default branch protection), **OPEN_ISSUES** (open issues + PRs count), **SIZE_KB** (repository disk size in KB)

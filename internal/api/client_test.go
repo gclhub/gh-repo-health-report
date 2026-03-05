@@ -116,3 +116,55 @@ func TestCheckFileExists_Mock(t *testing.T) {
 	}
 	resp2.Body.Close()
 }
+
+func TestPopulateExtendedChecks_Mock(t *testing.T) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/repos/owner/repo/contents/.github/dependabot.yml":
+			json.NewEncoder(w).Encode(map[string]string{"name": "dependabot.yml"})
+		case "/repos/owner/repo/contents/.github/workflows":
+			json.NewEncoder(w).Encode([]map[string]string{{"name": "ci.yml"}})
+		case "/repos/owner/repo/branches/main/protection":
+			json.NewEncoder(w).Encode(map[string]interface{}{"required_status_checks": nil})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	// Dependabot: present
+	resp, _ := http.Get(srv.URL + "/repos/owner/repo/contents/.github/dependabot.yml")
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200 for dependabot.yml, got %d", resp.StatusCode)
+	}
+
+	// CI workflows directory: present and non-empty
+	resp2, err2 := http.Get(srv.URL + "/repos/owner/repo/contents/.github/workflows")
+	if err2 != nil {
+		t.Fatalf("request failed: %v", err2)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 200 {
+		t.Errorf("expected 200 for workflows dir, got %d", resp2.StatusCode)
+	}
+	var workflows []map[string]string
+	json.NewDecoder(resp2.Body).Decode(&workflows)
+	if len(workflows) == 0 {
+		t.Error("expected non-empty workflows directory")
+	}
+
+	// Branch protection: present
+	resp3, _ := http.Get(srv.URL + "/repos/owner/repo/branches/main/protection")
+	resp3.Body.Close()
+	if resp3.StatusCode != 200 {
+		t.Errorf("expected 200 for branch protection, got %d", resp3.StatusCode)
+	}
+
+	// No branch protection (404)
+	resp4, _ := http.Get(srv.URL + "/repos/owner/repo/branches/feature/protection")
+	resp4.Body.Close()
+	if resp4.StatusCode != 404 {
+		t.Errorf("expected 404 for unprotected branch, got %d", resp4.StatusCode)
+	}
+}

@@ -24,12 +24,19 @@ type Repository struct {
 	HasIssuesEnabled   bool      `json:"has_issues"`
 	HasProjectsEnabled bool      `json:"has_projects"`
 	HasWikiEnabled     bool      `json:"has_wiki"`
+	// From GitHub API metadata (returned alongside basic repo fields)
+	OpenIssueCount int `json:"open_issues_count"`
+	SizeKB         int `json:"size"`
 	// Populated by PopulateFileChecks
 	HasReadme       bool `json:"has_readme"`
 	HasLicense      bool `json:"has_license"`
 	HasCodeowners   bool `json:"has_codeowners"`
 	HasSecurity     bool `json:"has_security"`
 	HasContributing bool `json:"has_contributing"`
+	// Populated by PopulateExtendedChecks
+	HasDependabot          bool `json:"has_dependabot"`
+	HasCIWorkflows         bool `json:"has_ci_workflows"`
+	DefaultBranchProtected bool `json:"default_branch_protected"`
 }
 
 // Client wraps the go-gh REST client.
@@ -179,6 +186,55 @@ func (c *Client) GetCurrentUser(v interface{}) error {
 	return c.rest.Get("user", v)
 }
 
+// PopulateExtendedChecks fills HasDependabot, HasCIWorkflows, and
+// DefaultBranchProtected on repo. These require extra API round-trips beyond
+// the basic file checks.
+func (c *Client) PopulateExtendedChecks(repo *Repository) error {
+	owner := repo.Owner.Login
+	name := repo.Name
+
+	// Dependabot — check both .yml and .yaml extensions
+	for _, p := range []string{".github/dependabot.yml", ".github/dependabot.yaml"} {
+		ok, err := c.CheckFileExists(owner, name, p)
+		if err != nil {
+			return err
+		}
+		if ok {
+			repo.HasDependabot = true
+			break
+		}
+	}
+
+	// CI workflows — check if .github/workflows/ directory has any entries
+	var contents []interface{}
+	err := c.rest.Get(fmt.Sprintf("repos/%s/%s/contents/.github/workflows", owner, name), &contents)
+	if err != nil {
+		if !isNotFound(err) {
+			return err
+		}
+	} else {
+		repo.HasCIWorkflows = len(contents) > 0
+	}
+
+	// Default branch protection — 404 means no protection; 403 means the
+	// caller lacks admin access, which we treat as "unknown / unprotected"
+	// so that the check still surfaces actionable signal.
+	var protection interface{}
+	err = c.rest.Get(
+		fmt.Sprintf("repos/%s/%s/branches/%s/protection", owner, name, repo.DefaultBranch),
+		&protection,
+	)
+	if err != nil {
+		if !isNotFound(err) && !isForbidden(err) {
+			return err
+		}
+	} else {
+		repo.DefaultBranchProtected = true
+	}
+
+	return nil
+}
+
 // isNotFound checks whether an error from go-gh is an HTTP 404.
 func isNotFound(err error) bool {
 	if err == nil {
@@ -188,6 +244,17 @@ func isNotFound(err error) bool {
 	if e, ok := err.(*api.HTTPError); ok {
 		httpErr = e
 		return httpErr.StatusCode == 404
+	}
+	return false
+}
+
+// isForbidden checks whether an error from go-gh is an HTTP 403.
+func isForbidden(err error) bool {
+	if err == nil {
+		return false
+	}
+	if e, ok := err.(*api.HTTPError); ok {
+		return e.StatusCode == 403
 	}
 	return false
 }

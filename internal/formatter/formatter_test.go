@@ -14,19 +14,24 @@ import (
 
 func sampleResults() []*checks.Result {
 	repo := &api.Repository{
-		FullName:           "owner/repo",
-		Name:               "repo",
-		Description:        "desc",
-		Topics:             []string{"go"},
-		PushedAt:           time.Now().Add(-10 * 24 * time.Hour),
-		HasIssuesEnabled:   true,
-		HasProjectsEnabled: false,
-		HasWikiEnabled:     true,
-		HasReadme:          true,
-		HasLicense:         false,
-		HasCodeowners:      false,
-		HasSecurity:        false,
-		HasContributing:    false,
+		FullName:               "owner/repo",
+		Name:                   "repo",
+		Description:            "desc",
+		Topics:                 []string{"go"},
+		PushedAt:               time.Now().Add(-10 * 24 * time.Hour),
+		HasIssuesEnabled:       true,
+		HasProjectsEnabled:     false,
+		HasWikiEnabled:         true,
+		HasReadme:              true,
+		HasLicense:             false,
+		HasCodeowners:          false,
+		HasSecurity:            false,
+		HasContributing:        false,
+		HasDependabot:          true,
+		HasCIWorkflows:         true,
+		DefaultBranchProtected: false,
+		OpenIssueCount:         5,
+		SizeKB:                 2048,
 	}
 	return []*checks.Result{checks.Evaluate(repo, checks.Options{Since: 180 * 24 * time.Hour})}
 }
