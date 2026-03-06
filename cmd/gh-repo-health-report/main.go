@@ -37,6 +37,11 @@ func rootCmd() *cobra.Command {
 		Use:   "gh-repo-health-report",
 		Short: "Report on the health of GitHub repositories",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Require at least one of --org, --owner, or --repo
+			if org == "" && owner == "" && len(repos) == 0 {
+				return fmt.Errorf("must specify at least one of --org, --owner, or --repo")
+			}
+
 			// Parse --since
 			sinceThreshold, err := parseSince(since)
 			if err != nil {
@@ -72,18 +77,6 @@ func rootCmd() *cobra.Command {
 				repoList, err = client.ListUserRepos(owner, includeForks, includeArchived)
 				if err != nil {
 					return fmt.Errorf("failed to list user repos: %w", err)
-				}
-			default:
-				// Default: current authenticated user
-				var user struct {
-					Login string `json:"login"`
-				}
-				if err := client.GetCurrentUser(&user); err != nil {
-					return fmt.Errorf("failed to get current user: %w", err)
-				}
-				repoList, err = client.ListUserRepos(user.Login, includeForks, includeArchived)
-				if err != nil {
-					return fmt.Errorf("failed to list repos for current user: %w", err)
 				}
 			}
 
