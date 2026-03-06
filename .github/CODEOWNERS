@@ -1,0 +1,12 @@
+# This is the CODEOWNERS file for gclhub/gh-repo-health-report
+# Each line is a file pattern followed by one or more owners.
+
+# Default owner for everything in the repo
+* @gclhub
+
+# GitHub Actions workflows
+/.github/ @gclhub
+
+# Go source code
+/cmd/ @gclhub
+/internal/ @gclhub
