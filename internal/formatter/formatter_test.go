@@ -14,24 +14,29 @@ import (
 
 func sampleResults() []*checks.Result {
 	repo := &api.Repository{
-		FullName:               "owner/repo",
-		Name:                   "repo",
-		Description:            "desc",
-		Topics:                 []string{"go"},
-		PushedAt:               time.Now().Add(-10 * 24 * time.Hour),
-		HasIssuesEnabled:       true,
-		HasProjectsEnabled:     false,
-		HasWikiEnabled:         true,
-		HasReadme:              true,
-		HasLicense:             false,
-		HasCodeowners:          false,
-		HasSecurity:            false,
-		HasContributing:        false,
-		HasDependabot:          true,
-		HasCIWorkflows:         true,
-		DefaultBranchProtected: false,
-		OpenIssueCount:         5,
-		SizeKB:                 2048,
+		FullName:                   "owner/repo",
+		Name:                       "repo",
+		Description:                "desc",
+		Topics:                     []string{"go"},
+		PushedAt:                   time.Now().Add(-10 * 24 * time.Hour),
+		HasIssuesEnabled:           true,
+		HasProjectsEnabled:         false,
+		HasWikiEnabled:             true,
+		HasReadme:                  true,
+		HasLicense:                 false,
+		HasCodeowners:              false,
+		HasSecurity:                false,
+		HasContributing:            false,
+		HasDependabot:              true,
+		HasCIWorkflows:             true,
+		DefaultBranchProtected:     false,
+		VulnerabilityAlertsEnabled: true,
+		DeleteBranchOnMerge:        false,
+		OpenIssueCount:             5,
+		SizeKB:                     2048,
+		BranchCount:                4,
+		StaleBranchCount:           1,
+		TagCount:                   10,
 	}
 	return []*checks.Result{checks.Evaluate(repo, checks.Options{Since: 180 * 24 * time.Hour})}
 }
@@ -73,6 +78,21 @@ func TestFormatJSON(t *testing.T) {
 	}
 	if _, ok := rows[0]["has_readme"]; !ok {
 		t.Error("JSON should contain has_readme field")
+	}
+	if _, ok := rows[0]["branch_count"]; !ok {
+		t.Error("JSON should contain branch_count field")
+	}
+	if _, ok := rows[0]["stale_branch_count"]; !ok {
+		t.Error("JSON should contain stale_branch_count field")
+	}
+	if _, ok := rows[0]["tag_count"]; !ok {
+		t.Error("JSON should contain tag_count field")
+	}
+	if _, ok := rows[0]["vulnerability_alerts_enabled"]; !ok {
+		t.Error("JSON should contain vulnerability_alerts_enabled field")
+	}
+	if _, ok := rows[0]["delete_branch_on_merge"]; !ok {
+		t.Error("JSON should contain delete_branch_on_merge field")
 	}
 }
 

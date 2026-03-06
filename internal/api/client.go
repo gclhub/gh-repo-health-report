@@ -7,6 +7,11 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 )
 
+// branchItem is used internally for branch listing.
+type branchItem struct {
+	Name string `json:"name"`
+}
+
 // Repository represents a GitHub repository with health-check fields.
 type Repository struct {
 	FullName string `json:"full_name"`
@@ -25,8 +30,9 @@ type Repository struct {
 	HasProjectsEnabled bool      `json:"has_projects"`
 	HasWikiEnabled     bool      `json:"has_wiki"`
 	// From GitHub API metadata (returned alongside basic repo fields)
-	OpenIssueCount int `json:"open_issues_count"`
-	SizeKB         int `json:"size"`
+	OpenIssueCount      int  `json:"open_issues_count"`
+	SizeKB              int  `json:"size"`
+	DeleteBranchOnMerge bool `json:"delete_branch_on_merge"`
 	// Populated by PopulateFileChecks
 	HasReadme       bool `json:"has_readme"`
 	HasLicense      bool `json:"has_license"`
@@ -34,9 +40,14 @@ type Repository struct {
 	HasSecurity     bool `json:"has_security"`
 	HasContributing bool `json:"has_contributing"`
 	// Populated by PopulateExtendedChecks
-	HasDependabot          bool `json:"has_dependabot"`
-	HasCIWorkflows         bool `json:"has_ci_workflows"`
-	DefaultBranchProtected bool `json:"default_branch_protected"`
+	HasDependabot              bool `json:"has_dependabot"`
+	HasCIWorkflows             bool `json:"has_ci_workflows"`
+	DefaultBranchProtected     bool `json:"default_branch_protected"`
+	VulnerabilityAlertsEnabled bool `json:"vulnerability_alerts_enabled"`
+	// Populated by PopulateBranchTagChecks
+	BranchCount      int `json:"branch_count"`
+	StaleBranchCount int `json:"stale_branch_count"`
+	TagCount         int `json:"tag_count"`
 }
 
 // Client wraps the go-gh REST client.
@@ -230,6 +241,84 @@ func (c *Client) PopulateExtendedChecks(repo *Repository) error {
 		}
 	} else {
 		repo.DefaultBranchProtected = true
+	}
+
+	// Vulnerability alerts — 204 means enabled; 404 means not enabled or
+	// insufficient permissions.
+	var noBody interface{}
+	err = c.rest.Get(fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name), &noBody)
+	if err != nil {
+		if !isNotFound(err) && !isForbidden(err) {
+			return err
+		}
+	} else {
+		repo.VulnerabilityAlertsEnabled = true
+	}
+
+	return nil
+}
+
+// PopulateBranchTagChecks fills BranchCount, StaleBranchCount, and TagCount
+// on repo. A branch is considered stale if it has no commits after the
+// provided cutoff time (this excludes the default branch). Each non-default
+// branch requires one extra API call to check for recent commits; callers
+// should be aware of the resulting rate-limit cost on repos with many branches.
+func (c *Client) PopulateBranchTagChecks(repo *Repository, since time.Time) error {
+	owner := repo.Owner.Login
+	name := repo.Name
+
+	// Paginate all branches.
+	page := 1
+	for {
+		var branches []branchItem
+		path := fmt.Sprintf("repos/%s/%s/branches?per_page=100&page=%d", owner, name, page)
+		if err := c.rest.Get(path, &branches); err != nil {
+			return err
+		}
+		repo.BranchCount += len(branches)
+
+		// Check staleness for every non-default branch.
+		sinceStr := since.UTC().Format(time.RFC3339)
+		for _, b := range branches {
+			if b.Name == repo.DefaultBranch {
+				continue
+			}
+			var commits []interface{}
+			cpath := fmt.Sprintf(
+				"repos/%s/%s/commits?sha=%s&since=%s&per_page=1",
+				owner, name, b.Name, sinceStr,
+			)
+			if err := c.rest.Get(cpath, &commits); err != nil {
+				// On transient errors (rate limit, deleted branch race, etc.)
+				// skip the branch rather than aborting the whole report.
+				// BranchCount still reflects the total; only StaleBranchCount
+				// may be under-counted in such cases.
+				continue
+			}
+			if len(commits) == 0 {
+				repo.StaleBranchCount++
+			}
+		}
+
+		if len(branches) < 100 {
+			break
+		}
+		page++
+	}
+
+	// Paginate all tags.
+	page = 1
+	for {
+		var tags []interface{}
+		path := fmt.Sprintf("repos/%s/%s/tags?per_page=100&page=%d", owner, name, page)
+		if err := c.rest.Get(path, &tags); err != nil {
+			return err
+		}
+		repo.TagCount += len(tags)
+		if len(tags) < 100 {
+			break
+		}
+		page++
 	}
 
 	return nil

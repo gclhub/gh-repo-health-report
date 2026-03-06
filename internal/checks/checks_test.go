@@ -10,23 +10,28 @@ import (
 
 func baseRepo() *api.Repository {
 	return &api.Repository{
-		FullName:               "owner/repo",
-		Name:                   "repo",
-		Description:            "a description",
-		Homepage:               "https://example.com",
-		Topics:                 []string{"go", "cli"},
-		PushedAt:               time.Now().Add(-10 * 24 * time.Hour),
-		HasIssuesEnabled:       true,
-		HasProjectsEnabled:     true,
-		HasWikiEnabled:         true,
-		HasReadme:              true,
-		HasLicense:             true,
-		HasCodeowners:          true,
-		HasSecurity:            true,
-		HasContributing:        true,
-		HasDependabot:          true,
-		HasCIWorkflows:         true,
-		DefaultBranchProtected: true,
+		FullName:                   "owner/repo",
+		Name:                       "repo",
+		Description:                "a description",
+		Homepage:                   "https://example.com",
+		Topics:                     []string{"go", "cli"},
+		PushedAt:                   time.Now().Add(-10 * 24 * time.Hour),
+		HasIssuesEnabled:           true,
+		HasProjectsEnabled:         true,
+		HasWikiEnabled:             true,
+		HasReadme:                  true,
+		HasLicense:                 true,
+		HasCodeowners:              true,
+		HasSecurity:                true,
+		HasContributing:            true,
+		HasDependabot:              true,
+		HasCIWorkflows:             true,
+		DefaultBranchProtected:     true,
+		VulnerabilityAlertsEnabled: true,
+		DeleteBranchOnMerge:        true,
+		BranchCount:                3,
+		StaleBranchCount:           0,
+		TagCount:                   5,
 	}
 }
 
@@ -139,6 +144,12 @@ func TestEvaluate_ExtendedChecks_AllPresent(t *testing.T) {
 	if !result.DefaultBranchProtected {
 		t.Error("expected DefaultBranchProtected")
 	}
+	if !result.VulnerabilityAlertsEnabled {
+		t.Error("expected VulnerabilityAlertsEnabled")
+	}
+	if !result.DeleteBranchOnMerge {
+		t.Error("expected DeleteBranchOnMerge")
+	}
 	if len(result.FailedChecks) != 0 {
 		t.Errorf("expected no failed checks for healthy repo, got %v", result.FailedChecks)
 	}
@@ -149,6 +160,8 @@ func TestEvaluate_ExtendedChecks_Missing(t *testing.T) {
 	repo.HasDependabot = false
 	repo.HasCIWorkflows = false
 	repo.DefaultBranchProtected = false
+	repo.VulnerabilityAlertsEnabled = false
+	repo.DeleteBranchOnMerge = false
 	opts := checks.Options{Since: 180 * 24 * time.Hour}
 	result := checks.Evaluate(repo, opts)
 
@@ -156,6 +169,8 @@ func TestEvaluate_ExtendedChecks_Missing(t *testing.T) {
 		checks.CheckMissingDependabot,
 		checks.CheckMissingCI,
 		checks.CheckNoBranchProtection,
+		checks.CheckNoVulnerabilityAlerts,
+		checks.CheckNoDeleteBranchOnMerge,
 	} {
 		if !contains(result.FailedChecks, check) {
 			t.Errorf("expected %s in FailedChecks, got %v", check, result.FailedChecks)
@@ -175,6 +190,82 @@ func TestEvaluate_OpenIssueCountAndSize(t *testing.T) {
 	}
 	if result.SizeKB != 8192 {
 		t.Errorf("expected SizeKB=8192, got %d", result.SizeKB)
+	}
+}
+
+func TestEvaluate_TooManyBranches(t *testing.T) {
+	repo := baseRepo()
+	repo.BranchCount = 60
+	opts := checks.Options{Since: 180 * 24 * time.Hour, MaxBranches: 50}
+	result := checks.Evaluate(repo, opts)
+
+	if result.BranchCount != 60 {
+		t.Errorf("expected BranchCount=60, got %d", result.BranchCount)
+	}
+	if !contains(result.FailedChecks, checks.CheckTooManyBranches) {
+		t.Errorf("expected %s in FailedChecks, got %v", checks.CheckTooManyBranches, result.FailedChecks)
+	}
+}
+
+func TestEvaluate_BranchCountWithinLimit(t *testing.T) {
+	repo := baseRepo()
+	repo.BranchCount = 10
+	opts := checks.Options{Since: 180 * 24 * time.Hour, MaxBranches: 50}
+	result := checks.Evaluate(repo, opts)
+
+	if contains(result.FailedChecks, checks.CheckTooManyBranches) {
+		t.Errorf("expected %s not in FailedChecks, got %v", checks.CheckTooManyBranches, result.FailedChecks)
+	}
+}
+
+func TestEvaluate_StaleBranches(t *testing.T) {
+	repo := baseRepo()
+	repo.StaleBranchCount = 3
+	opts := checks.Options{Since: 180 * 24 * time.Hour}
+	result := checks.Evaluate(repo, opts)
+
+	if result.StaleBranchCount != 3 {
+		t.Errorf("expected StaleBranchCount=3, got %d", result.StaleBranchCount)
+	}
+	if !contains(result.FailedChecks, checks.CheckHasStaleBranches) {
+		t.Errorf("expected %s in FailedChecks, got %v", checks.CheckHasStaleBranches, result.FailedChecks)
+	}
+}
+
+func TestEvaluate_TooManyTags(t *testing.T) {
+	repo := baseRepo()
+	repo.TagCount = 150
+	opts := checks.Options{Since: 180 * 24 * time.Hour, MaxTags: 100}
+	result := checks.Evaluate(repo, opts)
+
+	if result.TagCount != 150 {
+		t.Errorf("expected TagCount=150, got %d", result.TagCount)
+	}
+	if !contains(result.FailedChecks, checks.CheckTooManyTags) {
+		t.Errorf("expected %s in FailedChecks, got %v", checks.CheckTooManyTags, result.FailedChecks)
+	}
+}
+
+func TestEvaluate_TagCountWithinLimit(t *testing.T) {
+	repo := baseRepo()
+	repo.TagCount = 20
+	opts := checks.Options{Since: 180 * 24 * time.Hour, MaxTags: 100}
+	result := checks.Evaluate(repo, opts)
+
+	if contains(result.FailedChecks, checks.CheckTooManyTags) {
+		t.Errorf("expected %s not in FailedChecks, got %v", checks.CheckTooManyTags, result.FailedChecks)
+	}
+}
+
+func TestEvaluate_DefaultBranchCountThresholds(t *testing.T) {
+	// With MaxBranches=0, default of 50 should apply.
+	repo := baseRepo()
+	repo.BranchCount = 51
+	opts := checks.Options{Since: 180 * 24 * time.Hour} // MaxBranches=0 → default 50
+	result := checks.Evaluate(repo, opts)
+
+	if !contains(result.FailedChecks, checks.CheckTooManyBranches) {
+		t.Errorf("expected %s in FailedChecks with default threshold, got %v", checks.CheckTooManyBranches, result.FailedChecks)
 	}
 }
 

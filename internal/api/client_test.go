@@ -117,6 +117,90 @@ func TestCheckFileExists_Mock(t *testing.T) {
 	resp2.Body.Close()
 }
 
+func TestPopulateBranchTagChecks_Mock(t *testing.T) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/repos/owner/repo/branches":
+			// Return 2 branches: main and feature
+			json.NewEncoder(w).Encode([]map[string]string{
+				{"name": "main"},
+				{"name": "feature"},
+			})
+		case r.URL.Path == "/repos/owner/repo/commits" && r.URL.Query().Get("sha") == "feature":
+			// feature branch has no recent commits → stale
+			json.NewEncoder(w).Encode([]interface{}{})
+		case r.URL.Path == "/repos/owner/repo/tags":
+			json.NewEncoder(w).Encode([]map[string]string{
+				{"name": "v1.0.0"},
+				{"name": "v1.1.0"},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	// Branches endpoint
+	resp, err := http.Get(srv.URL + "/repos/owner/repo/branches?per_page=100&page=1")
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("branches request failed: status=%v err=%v", resp.StatusCode, err)
+	}
+	var branches []map[string]string
+	json.NewDecoder(resp.Body).Decode(&branches)
+	resp.Body.Close()
+	if len(branches) != 2 {
+		t.Errorf("expected 2 branches, got %d", len(branches))
+	}
+
+	// Feature branch stale check (no recent commits)
+	resp2, err := http.Get(srv.URL + "/repos/owner/repo/commits?sha=feature&since=2000-01-01T00:00:00Z&per_page=1")
+	if err != nil || resp2.StatusCode != 200 {
+		t.Fatalf("commits request failed: status=%v err=%v", resp2.StatusCode, err)
+	}
+	var commits []interface{}
+	json.NewDecoder(resp2.Body).Decode(&commits)
+	resp2.Body.Close()
+	if len(commits) != 0 {
+		t.Errorf("expected 0 recent commits for stale branch, got %d", len(commits))
+	}
+
+	// Tags endpoint
+	resp3, err := http.Get(srv.URL + "/repos/owner/repo/tags?per_page=100&page=1")
+	if err != nil || resp3.StatusCode != 200 {
+		t.Fatalf("tags request failed: status=%v err=%v", resp3.StatusCode, err)
+	}
+	var tags []map[string]string
+	json.NewDecoder(resp3.Body).Decode(&tags)
+	resp3.Body.Close()
+	if len(tags) != 2 {
+		t.Errorf("expected 2 tags, got %d", len(tags))
+	}
+}
+
+func TestVulnerabilityAlerts_Mock(t *testing.T) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/owner/repo/vulnerability-alerts" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	// Vulnerability alerts enabled
+	resp, err := http.Get(srv.URL + "/repos/owner/repo/vulnerability-alerts")
+	if err != nil || resp.StatusCode != 204 {
+		t.Errorf("expected 204 for vulnerability alerts, got status %v err %v", resp.StatusCode, err)
+	}
+	resp.Body.Close()
+
+	// Not enabled (404)
+	resp2, err := http.Get(srv.URL + "/repos/other/repo/vulnerability-alerts")
+	if err != nil || resp2.StatusCode != 404 {
+		t.Errorf("expected 404 for disabled vulnerability alerts, got status %v err %v", resp2.StatusCode, err)
+	}
+	resp2.Body.Close()
+}
+
 func TestPopulateExtendedChecks_Mock(t *testing.T) {
 	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

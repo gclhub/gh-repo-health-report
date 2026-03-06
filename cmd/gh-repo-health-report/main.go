@@ -29,6 +29,8 @@ func rootCmd() *cobra.Command {
 		format          string
 		output          string
 		failOn          string
+		maxBranches     int
+		maxTags         int
 	)
 
 	cmd := &cobra.Command{
@@ -86,7 +88,12 @@ func rootCmd() *cobra.Command {
 			}
 
 			// Populate file checks and evaluate
-			opts := checks.Options{Since: sinceThreshold}
+			opts := checks.Options{
+				Since:       sinceThreshold,
+				MaxBranches: maxBranches,
+				MaxTags:     maxTags,
+			}
+			sinceTime := time.Now().Add(-sinceThreshold)
 			var results []*checks.Result
 			for _, repo := range repoList {
 				if err := client.PopulateFileChecks(repo); err != nil {
@@ -94,6 +101,9 @@ func rootCmd() *cobra.Command {
 				}
 				if err := client.PopulateExtendedChecks(repo); err != nil {
 					return fmt.Errorf("failed to run extended checks for %s: %w", repo.FullName, err)
+				}
+				if err := client.PopulateBranchTagChecks(repo, sinceTime); err != nil {
+					return fmt.Errorf("failed to run branch/tag checks for %s: %w", repo.FullName, err)
 				}
 				results = append(results, checks.Evaluate(repo, opts))
 			}
@@ -136,6 +146,8 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&format, "format", "table", "Output format: table, json, csv, md")
 	cmd.Flags().StringVar(&output, "output", "", "Output file path (default stdout)")
 	cmd.Flags().StringVar(&failOn, "fail-on", "", "Comma-separated check names; exit 1 if any repo fails (use 'any' to fail on any failure)")
+	cmd.Flags().IntVar(&maxBranches, "max-branches", 50, "Branch count threshold for too-many-branches check (0 to disable)")
+	cmd.Flags().IntVar(&maxTags, "max-tags", 100, "Tag count threshold for too-many-tags check (0 to disable)")
 
 	return cmd
 }
