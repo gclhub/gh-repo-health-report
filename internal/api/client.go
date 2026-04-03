@@ -227,8 +227,10 @@ func (c *Client) PopulateFileChecks(repo *Repository) error {
 		}
 	}
 
-	// Issue templates – check for .github/ISSUE_TEMPLATE/ directory or a
-	// single ISSUE_TEMPLATE.md file in the root or .github/
+	// Issue templates — CheckFileExists handles both directories and files, so
+	// checking .github/ISSUE_TEMPLATE will return true for the directory itself
+	// when it exists. Fall back to single-file variants for repos that use a
+	// simpler layout.
 	for _, p := range []string{".github/ISSUE_TEMPLATE", ".github/ISSUE_TEMPLATE.md", "ISSUE_TEMPLATE.md"} {
 		ok, err := c.CheckFileExists(owner, name, p)
 		if err != nil {

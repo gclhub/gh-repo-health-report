@@ -21,8 +21,9 @@ func bool2check(v bool) string {
 }
 
 // tristate returns ✓ when ok is true, ? when unknown is true, and ✗ otherwise.
-// Use this for security settings that require admin access to read: a ? means
-// the caller lacked the necessary permissions to determine the status.
+// Use this for security settings that require sufficient GitHub permissions
+// (typically push or admin access) to read: a ? means the caller lacked the
+// necessary permissions to determine the status.
 func tristate(ok, unknown bool) string {
 	if unknown {
 		return "?"
