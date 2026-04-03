@@ -8,22 +8,28 @@ import (
 
 // Check name constants.
 const (
-	CheckHasDescription      = "has-description"
-	CheckHasHomepage         = "has-homepage"
-	CheckMissingReadme       = "missing-readme"
-	CheckMissingLicense      = "missing-license"
-	CheckMissingCodeowners   = "missing-codeowners"
-	CheckMissingSecurityMd   = "missing-security"
-	CheckMissingContributing = "missing-contributing"
-	CheckStale               = "stale"
-	CheckHasIssues           = "has-issues"
-	CheckHasProjects         = "has-projects"
-	CheckHasWiki             = "has-wiki"
+	CheckHasDescription        = "has-description"
+	CheckHasHomepage           = "has-homepage"
+	CheckMissingReadme         = "missing-readme"
+	CheckMissingLicense        = "missing-license"
+	CheckMissingCodeOfConduct  = "missing-code-of-conduct"
+	CheckMissingCodeowners     = "missing-codeowners"
+	CheckMissingSecurityMd     = "missing-security"
+	CheckMissingContributing   = "missing-contributing"
+	CheckMissingIssueTemplates = "missing-issue-templates"
+	CheckMissingPRTemplate     = "missing-pr-template"
+	CheckStale                 = "stale"
+	CheckHasIssues             = "has-issues"
+	CheckHasProjects           = "has-projects"
+	CheckHasWiki               = "has-wiki"
 	// Extended checks
 	CheckMissingDependabot     = "missing-dependabot"
 	CheckMissingCI             = "missing-ci"
 	CheckNoBranchProtection    = "no-branch-protection"
+	CheckNoRulesets            = "no-rulesets"
 	CheckNoVulnerabilityAlerts = "no-vulnerability-alerts"
+	CheckNoSecretScanning      = "no-secret-scanning"
+	CheckNoPushProtection      = "no-push-protection"
 	CheckNoDeleteBranchOnMerge = "no-delete-branch-on-merge"
 	// Branch and tag checks
 	CheckTooManyBranches  = "too-many-branches"
@@ -49,26 +55,35 @@ type Options struct {
 
 // Result holds the health check results for a single repository.
 type Result struct {
-	Repository      *api.Repository
-	Stale           bool
-	HasDescription  bool
-	HasHomepage     bool
-	TopicsCount     int
-	HasReadme       bool
-	HasLicense      bool
-	HasCodeowners   bool
-	HasSecurity     bool
-	HasContributing bool
-	HasIssues       bool
-	HasProjects     bool
-	HasWiki         bool
+	Repository        *api.Repository
+	Stale             bool
+	HasDescription    bool
+	HasHomepage       bool
+	TopicsCount       int
+	HasReadme         bool
+	HasLicense        bool
+	HasCodeOfConduct  bool
+	HasCodeowners     bool
+	HasSecurity       bool
+	HasContributing   bool
+	HasIssueTemplates bool
+	HasPRTemplate     bool
+	HasIssues         bool
+	HasProjects       bool
+	HasWiki           bool
 	// Extended check results
 	OpenIssueCount             int
 	SizeKB                     int
 	HasDependabot              bool
 	HasCIWorkflows             bool
 	DefaultBranchProtected     bool
+	HasRulesets                bool
 	VulnerabilityAlertsEnabled bool
+	VulnerabilityAlertsUnknown bool
+	SecretScanningEnabled      bool
+	SecretScanningUnknown      bool
+	PushProtectionEnabled      bool
+	PushProtectionUnknown      bool
 	DeleteBranchOnMerge        bool
 	// Branch and tag check results
 	BranchCount      int
@@ -86,9 +101,12 @@ func Evaluate(repo *api.Repository, opts Options) *Result {
 		TopicsCount:                len(repo.Topics),
 		HasReadme:                  repo.HasReadme,
 		HasLicense:                 repo.HasLicense,
+		HasCodeOfConduct:           repo.HasCodeOfConduct,
 		HasCodeowners:              repo.HasCodeowners,
 		HasSecurity:                repo.HasSecurity,
 		HasContributing:            repo.HasContributing,
+		HasIssueTemplates:          repo.HasIssueTemplates,
+		HasPRTemplate:              repo.HasPRTemplate,
 		HasIssues:                  repo.HasIssuesEnabled,
 		HasProjects:                repo.HasProjectsEnabled,
 		HasWiki:                    repo.HasWikiEnabled,
@@ -97,7 +115,13 @@ func Evaluate(repo *api.Repository, opts Options) *Result {
 		HasDependabot:              repo.HasDependabot,
 		HasCIWorkflows:             repo.HasCIWorkflows,
 		DefaultBranchProtected:     repo.DefaultBranchProtected,
+		HasRulesets:                repo.HasRulesets,
 		VulnerabilityAlertsEnabled: repo.VulnerabilityAlertsEnabled,
+		VulnerabilityAlertsUnknown: repo.VulnerabilityAlertsUnknown,
+		SecretScanningEnabled:      repo.SecretScanningEnabled,
+		SecretScanningUnknown:      repo.SecretScanningUnknown,
+		PushProtectionEnabled:      repo.PushProtectionEnabled,
+		PushProtectionUnknown:      repo.PushProtectionUnknown,
 		DeleteBranchOnMerge:        repo.DeleteBranchOnMerge,
 		BranchCount:                repo.BranchCount,
 		StaleBranchCount:           repo.StaleBranchCount,
@@ -128,6 +152,9 @@ func Evaluate(repo *api.Repository, opts Options) *Result {
 	if !r.HasLicense {
 		r.FailedChecks = append(r.FailedChecks, CheckMissingLicense)
 	}
+	if !r.HasCodeOfConduct {
+		r.FailedChecks = append(r.FailedChecks, CheckMissingCodeOfConduct)
+	}
 	if !r.HasCodeowners {
 		r.FailedChecks = append(r.FailedChecks, CheckMissingCodeowners)
 	}
@@ -136,6 +163,12 @@ func Evaluate(repo *api.Repository, opts Options) *Result {
 	}
 	if !r.HasContributing {
 		r.FailedChecks = append(r.FailedChecks, CheckMissingContributing)
+	}
+	if !r.HasIssueTemplates {
+		r.FailedChecks = append(r.FailedChecks, CheckMissingIssueTemplates)
+	}
+	if !r.HasPRTemplate {
+		r.FailedChecks = append(r.FailedChecks, CheckMissingPRTemplate)
 	}
 	if !r.HasIssues {
 		r.FailedChecks = append(r.FailedChecks, CheckHasIssues)
@@ -155,8 +188,20 @@ func Evaluate(repo *api.Repository, opts Options) *Result {
 	if !r.DefaultBranchProtected {
 		r.FailedChecks = append(r.FailedChecks, CheckNoBranchProtection)
 	}
-	if !r.VulnerabilityAlertsEnabled {
+	if !r.HasRulesets {
+		r.FailedChecks = append(r.FailedChecks, CheckNoRulesets)
+	}
+	// Only flag vulnerability alerts as failed when we can actually determine
+	// the status (i.e. not a 403 / unknown case).
+	if !r.VulnerabilityAlertsUnknown && !r.VulnerabilityAlertsEnabled {
 		r.FailedChecks = append(r.FailedChecks, CheckNoVulnerabilityAlerts)
+	}
+	// Only flag secret scanning / push protection when the status is known.
+	if !r.SecretScanningUnknown && !r.SecretScanningEnabled {
+		r.FailedChecks = append(r.FailedChecks, CheckNoSecretScanning)
+	}
+	if !r.PushProtectionUnknown && !r.PushProtectionEnabled {
+		r.FailedChecks = append(r.FailedChecks, CheckNoPushProtection)
 	}
 	if !r.DeleteBranchOnMerge {
 		r.FailedChecks = append(r.FailedChecks, CheckNoDeleteBranchOnMerge)

@@ -11,13 +11,23 @@ import (
 	"github.com/gclhub/gh-repo-health-report/internal/checks"
 )
 
-const tableHeader = "REPO\tSTALE\tDESCRIPTION\tTOPICS\tREADME\tLICENSE\tCODEOWNERS\tSECURITY\tCONTRIBUTING\tISSUES\tWIKI\tPROJECTS\tDEPENDABOT\tCI\tBR_PROTECT\tVULN_ALERTS\tAUTO_DEL_BR\tBRANCHES\tSTALE_BR\tTAGS\tOPEN_ISSUES\tSIZE_KB"
+const tableHeader = "REPO\tSTALE\tDESCRIPTION\tTOPICS\tREADME\tLICENSE\tCODE_CONDUCT\tCODEOWNERS\tSECURITY\tCONTRIBUTING\tISSUE_TMPL\tPR_TMPL\tISSUES\tWIKI\tPROJECTS\tDEPENDABOT\tCI\tBR_PROTECT\tRULESETS\tVULN_ALERTS\tSECRET_SCAN\tPUSH_PROT\tAUTO_DEL_BR\tBRANCHES\tSTALE_BR\tTAGS\tOPEN_ISSUES\tSIZE_KB"
 
 func bool2check(v bool) string {
 	if v {
 		return "✓"
 	}
 	return "✗"
+}
+
+// tristate returns ✓ when ok is true, ? when unknown is true, and ✗ otherwise.
+// Use this for security settings that require admin access to read: a ? means
+// the caller lacked the necessary permissions to determine the status.
+func tristate(ok, unknown bool) string {
+	if unknown {
+		return "?"
+	}
+	return bool2check(ok)
 }
 
 func staleStr(v bool) string {
@@ -45,23 +55,29 @@ func formatTable(results []*checks.Result, w io.Writer) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, tableHeader)
 	for _, r := range results {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\n",
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\n",
 			r.Repository.FullName,
 			staleStr(r.Stale),
 			bool2check(r.HasDescription),
 			r.TopicsCount,
 			bool2check(r.HasReadme),
 			bool2check(r.HasLicense),
+			bool2check(r.HasCodeOfConduct),
 			bool2check(r.HasCodeowners),
 			bool2check(r.HasSecurity),
 			bool2check(r.HasContributing),
+			bool2check(r.HasIssueTemplates),
+			bool2check(r.HasPRTemplate),
 			bool2check(r.HasIssues),
 			bool2check(r.HasWiki),
 			bool2check(r.HasProjects),
 			bool2check(r.HasDependabot),
 			bool2check(r.HasCIWorkflows),
 			bool2check(r.DefaultBranchProtected),
-			bool2check(r.VulnerabilityAlertsEnabled),
+			bool2check(r.HasRulesets),
+			tristate(r.VulnerabilityAlertsEnabled, r.VulnerabilityAlertsUnknown),
+			tristate(r.SecretScanningEnabled, r.SecretScanningUnknown),
+			tristate(r.PushProtectionEnabled, r.PushProtectionUnknown),
 			bool2check(r.DeleteBranchOnMerge),
 			r.BranchCount,
 			r.StaleBranchCount,
@@ -80,16 +96,25 @@ type jsonRow struct {
 	Topics                     int    `json:"topics_count"`
 	Readme                     bool   `json:"has_readme"`
 	License                    bool   `json:"has_license"`
+	CodeOfConduct              bool   `json:"has_code_of_conduct"`
 	Codeowners                 bool   `json:"has_codeowners"`
 	Security                   bool   `json:"has_security"`
 	Contributing               bool   `json:"has_contributing"`
+	IssueTemplates             bool   `json:"has_issue_templates"`
+	PRTemplate                 bool   `json:"has_pr_template"`
 	Issues                     bool   `json:"has_issues"`
 	Wiki                       bool   `json:"has_wiki"`
 	Projects                   bool   `json:"has_projects"`
 	Dependabot                 bool   `json:"has_dependabot"`
 	CIWorkflows                bool   `json:"has_ci_workflows"`
 	DefaultBranchProtected     bool   `json:"default_branch_protected"`
+	HasRulesets                bool   `json:"has_rulesets"`
 	VulnerabilityAlertsEnabled bool   `json:"vulnerability_alerts_enabled"`
+	VulnerabilityAlertsUnknown bool   `json:"vulnerability_alerts_unknown"`
+	SecretScanningEnabled      bool   `json:"secret_scanning_enabled"`
+	SecretScanningUnknown      bool   `json:"secret_scanning_unknown"`
+	PushProtectionEnabled      bool   `json:"push_protection_enabled"`
+	PushProtectionUnknown      bool   `json:"push_protection_unknown"`
 	DeleteBranchOnMerge        bool   `json:"delete_branch_on_merge"`
 	BranchCount                int    `json:"branch_count"`
 	StaleBranchCount           int    `json:"stale_branch_count"`
@@ -106,16 +131,25 @@ func toRow(r *checks.Result) jsonRow {
 		Topics:                     r.TopicsCount,
 		Readme:                     r.HasReadme,
 		License:                    r.HasLicense,
+		CodeOfConduct:              r.HasCodeOfConduct,
 		Codeowners:                 r.HasCodeowners,
 		Security:                   r.HasSecurity,
 		Contributing:               r.HasContributing,
+		IssueTemplates:             r.HasIssueTemplates,
+		PRTemplate:                 r.HasPRTemplate,
 		Issues:                     r.HasIssues,
 		Wiki:                       r.HasWiki,
 		Projects:                   r.HasProjects,
 		Dependabot:                 r.HasDependabot,
 		CIWorkflows:                r.HasCIWorkflows,
 		DefaultBranchProtected:     r.DefaultBranchProtected,
+		HasRulesets:                r.HasRulesets,
 		VulnerabilityAlertsEnabled: r.VulnerabilityAlertsEnabled,
+		VulnerabilityAlertsUnknown: r.VulnerabilityAlertsUnknown,
+		SecretScanningEnabled:      r.SecretScanningEnabled,
+		SecretScanningUnknown:      r.SecretScanningUnknown,
+		PushProtectionEnabled:      r.PushProtectionEnabled,
+		PushProtectionUnknown:      r.PushProtectionUnknown,
 		DeleteBranchOnMerge:        r.DeleteBranchOnMerge,
 		BranchCount:                r.BranchCount,
 		StaleBranchCount:           r.StaleBranchCount,
@@ -135,7 +169,7 @@ func formatJSON(results []*checks.Result, w io.Writer) error {
 	return enc.Encode(rows)
 }
 
-var csvHeader = []string{"REPO", "STALE", "DESCRIPTION", "TOPICS", "README", "LICENSE", "CODEOWNERS", "SECURITY", "CONTRIBUTING", "ISSUES", "WIKI", "PROJECTS", "DEPENDABOT", "CI", "BR_PROTECT", "VULN_ALERTS", "AUTO_DEL_BR", "BRANCHES", "STALE_BR", "TAGS", "OPEN_ISSUES", "SIZE_KB"}
+var csvHeader = []string{"REPO", "STALE", "DESCRIPTION", "TOPICS", "README", "LICENSE", "CODE_CONDUCT", "CODEOWNERS", "SECURITY", "CONTRIBUTING", "ISSUE_TMPL", "PR_TMPL", "ISSUES", "WIKI", "PROJECTS", "DEPENDABOT", "CI", "BR_PROTECT", "RULESETS", "VULN_ALERTS", "SECRET_SCAN", "PUSH_PROT", "AUTO_DEL_BR", "BRANCHES", "STALE_BR", "TAGS", "OPEN_ISSUES", "SIZE_KB"}
 
 func formatCSV(results []*checks.Result, w io.Writer) error {
 	cw := csv.NewWriter(w)
@@ -150,16 +184,22 @@ func formatCSV(results []*checks.Result, w io.Writer) error {
 			strconv.Itoa(r.TopicsCount),
 			strconv.FormatBool(r.HasReadme),
 			strconv.FormatBool(r.HasLicense),
+			strconv.FormatBool(r.HasCodeOfConduct),
 			strconv.FormatBool(r.HasCodeowners),
 			strconv.FormatBool(r.HasSecurity),
 			strconv.FormatBool(r.HasContributing),
+			strconv.FormatBool(r.HasIssueTemplates),
+			strconv.FormatBool(r.HasPRTemplate),
 			strconv.FormatBool(r.HasIssues),
 			strconv.FormatBool(r.HasWiki),
 			strconv.FormatBool(r.HasProjects),
 			strconv.FormatBool(r.HasDependabot),
 			strconv.FormatBool(r.HasCIWorkflows),
 			strconv.FormatBool(r.DefaultBranchProtected),
-			strconv.FormatBool(r.VulnerabilityAlertsEnabled),
+			strconv.FormatBool(r.HasRulesets),
+			tristate(r.VulnerabilityAlertsEnabled, r.VulnerabilityAlertsUnknown),
+			tristate(r.SecretScanningEnabled, r.SecretScanningUnknown),
+			tristate(r.PushProtectionEnabled, r.PushProtectionUnknown),
 			strconv.FormatBool(r.DeleteBranchOnMerge),
 			strconv.Itoa(r.BranchCount),
 			strconv.Itoa(r.StaleBranchCount),
@@ -176,26 +216,32 @@ func formatCSV(results []*checks.Result, w io.Writer) error {
 }
 
 func formatMD(results []*checks.Result, w io.Writer) error {
-	fmt.Fprintln(w, "| REPO | STALE | DESCRIPTION | TOPICS | README | LICENSE | CODEOWNERS | SECURITY | CONTRIBUTING | ISSUES | WIKI | PROJECTS | DEPENDABOT | CI | BR_PROTECT | VULN_ALERTS | AUTO_DEL_BR | BRANCHES | STALE_BR | TAGS | OPEN_ISSUES | SIZE_KB |")
-	fmt.Fprintln(w, "|------|-------|-------------|--------|--------|---------|------------|----------|--------------|--------|------|----------|------------|----|-----------:|------------:|------------:|---------:|---------:|-----:|------------:|--------:|")
+	fmt.Fprintln(w, "| REPO | STALE | DESCRIPTION | TOPICS | README | LICENSE | CODE_CONDUCT | CODEOWNERS | SECURITY | CONTRIBUTING | ISSUE_TMPL | PR_TMPL | ISSUES | WIKI | PROJECTS | DEPENDABOT | CI | BR_PROTECT | RULESETS | VULN_ALERTS | SECRET_SCAN | PUSH_PROT | AUTO_DEL_BR | BRANCHES | STALE_BR | TAGS | OPEN_ISSUES | SIZE_KB |")
+	fmt.Fprintln(w, "|------|-------|-------------|--------|--------|---------|--------------|------------|----------|--------------|------------|---------|--------|------|----------|------------|----|-----------:|----------:|------------:|------------:|----------:|------------:|---------:|---------:|-----:|------------:|--------:|")
 	for _, r := range results {
-		fmt.Fprintf(w, "| %s | %s | %s | %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %d | %d | %d | %d | %d |\n",
+		fmt.Fprintf(w, "| %s | %s | %s | %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %d | %d | %d | %d | %d |\n",
 			r.Repository.FullName,
 			staleStr(r.Stale),
 			bool2check(r.HasDescription),
 			r.TopicsCount,
 			bool2check(r.HasReadme),
 			bool2check(r.HasLicense),
+			bool2check(r.HasCodeOfConduct),
 			bool2check(r.HasCodeowners),
 			bool2check(r.HasSecurity),
 			bool2check(r.HasContributing),
+			bool2check(r.HasIssueTemplates),
+			bool2check(r.HasPRTemplate),
 			bool2check(r.HasIssues),
 			bool2check(r.HasWiki),
 			bool2check(r.HasProjects),
 			bool2check(r.HasDependabot),
 			bool2check(r.HasCIWorkflows),
 			bool2check(r.DefaultBranchProtected),
-			bool2check(r.VulnerabilityAlertsEnabled),
+			bool2check(r.HasRulesets),
+			tristate(r.VulnerabilityAlertsEnabled, r.VulnerabilityAlertsUnknown),
+			tristate(r.SecretScanningEnabled, r.SecretScanningUnknown),
+			tristate(r.PushProtectionEnabled, r.PushProtectionUnknown),
 			bool2check(r.DeleteBranchOnMerge),
 			r.BranchCount,
 			r.StaleBranchCount,

@@ -24,13 +24,22 @@ func sampleResults() []*checks.Result {
 		HasWikiEnabled:             true,
 		HasReadme:                  true,
 		HasLicense:                 false,
+		HasCodeOfConduct:           false,
 		HasCodeowners:              false,
 		HasSecurity:                false,
 		HasContributing:            false,
+		HasIssueTemplates:          false,
+		HasPRTemplate:              false,
 		HasDependabot:              true,
 		HasCIWorkflows:             true,
 		DefaultBranchProtected:     false,
+		HasRulesets:                false,
 		VulnerabilityAlertsEnabled: true,
+		VulnerabilityAlertsUnknown: false,
+		SecretScanningEnabled:      false,
+		SecretScanningUnknown:      true, // status not available → show "?"
+		PushProtectionEnabled:      false,
+		PushProtectionUnknown:      true, // status not available → show "?"
 		DeleteBranchOnMerge:        false,
 		OpenIssueCount:             5,
 		SizeKB:                     2048,
@@ -50,6 +59,24 @@ func TestFormatTable(t *testing.T) {
 	if !strings.Contains(out, "REPO") {
 		t.Error("table output should contain REPO header")
 	}
+	if !strings.Contains(out, "CODE_CONDUCT") {
+		t.Error("table output should contain CODE_CONDUCT header")
+	}
+	if !strings.Contains(out, "RULESETS") {
+		t.Error("table output should contain RULESETS header")
+	}
+	if !strings.Contains(out, "SECRET_SCAN") {
+		t.Error("table output should contain SECRET_SCAN header")
+	}
+	if !strings.Contains(out, "PUSH_PROT") {
+		t.Error("table output should contain PUSH_PROT header")
+	}
+	if !strings.Contains(out, "ISSUE_TMPL") {
+		t.Error("table output should contain ISSUE_TMPL header")
+	}
+	if !strings.Contains(out, "PR_TMPL") {
+		t.Error("table output should contain PR_TMPL header")
+	}
 	if !strings.Contains(out, "owner/repo") {
 		t.Error("table output should contain repo name")
 	}
@@ -58,6 +85,10 @@ func TestFormatTable(t *testing.T) {
 	}
 	if !strings.Contains(out, "✗") {
 		t.Error("table output should contain ✗")
+	}
+	// SecretScanningUnknown and PushProtectionUnknown are true → expect "?"
+	if !strings.Contains(out, "?") {
+		t.Error("table output should contain ? for unknown security settings")
 	}
 }
 
@@ -76,23 +107,27 @@ func TestFormatJSON(t *testing.T) {
 	if rows[0]["repo"] != "owner/repo" {
 		t.Errorf("expected repo=owner/repo, got %v", rows[0]["repo"])
 	}
-	if _, ok := rows[0]["has_readme"]; !ok {
-		t.Error("JSON should contain has_readme field")
+	for _, field := range []string{
+		"has_readme", "has_code_of_conduct", "has_codeowners",
+		"has_issue_templates", "has_pr_template",
+		"branch_count", "stale_branch_count", "tag_count",
+		"has_rulesets",
+		"vulnerability_alerts_enabled", "vulnerability_alerts_unknown",
+		"secret_scanning_enabled", "secret_scanning_unknown",
+		"push_protection_enabled", "push_protection_unknown",
+		"delete_branch_on_merge",
+	} {
+		if _, ok := rows[0][field]; !ok {
+			t.Errorf("JSON should contain %s field", field)
+		}
 	}
-	if _, ok := rows[0]["branch_count"]; !ok {
-		t.Error("JSON should contain branch_count field")
+	// VulnerabilityAlertsUnknown is false → should be false in JSON
+	if rows[0]["vulnerability_alerts_unknown"] != false {
+		t.Errorf("expected vulnerability_alerts_unknown=false, got %v", rows[0]["vulnerability_alerts_unknown"])
 	}
-	if _, ok := rows[0]["stale_branch_count"]; !ok {
-		t.Error("JSON should contain stale_branch_count field")
-	}
-	if _, ok := rows[0]["tag_count"]; !ok {
-		t.Error("JSON should contain tag_count field")
-	}
-	if _, ok := rows[0]["vulnerability_alerts_enabled"]; !ok {
-		t.Error("JSON should contain vulnerability_alerts_enabled field")
-	}
-	if _, ok := rows[0]["delete_branch_on_merge"]; !ok {
-		t.Error("JSON should contain delete_branch_on_merge field")
+	// SecretScanningUnknown is true → should be true in JSON
+	if rows[0]["secret_scanning_unknown"] != true {
+		t.Errorf("expected secret_scanning_unknown=true, got %v", rows[0]["secret_scanning_unknown"])
 	}
 }
 
@@ -108,6 +143,11 @@ func TestFormatCSV(t *testing.T) {
 	if !strings.HasPrefix(lines[0], "REPO") {
 		t.Errorf("first line should be header, got: %s", lines[0])
 	}
+	for _, col := range []string{"CODE_CONDUCT", "RULESETS", "SECRET_SCAN", "PUSH_PROT", "ISSUE_TMPL", "PR_TMPL"} {
+		if !strings.Contains(lines[0], col) {
+			t.Errorf("CSV header should contain %s, got: %s", col, lines[0])
+		}
+	}
 	if !strings.Contains(lines[1], "owner/repo") {
 		t.Errorf("data row should contain repo name: %s", lines[1])
 	}
@@ -121,6 +161,12 @@ func TestFormatMD(t *testing.T) {
 	out := buf.String()
 	if !strings.Contains(out, "| REPO |") {
 		t.Error("md output should contain | REPO | header")
+	}
+	if !strings.Contains(out, "CODE_CONDUCT") {
+		t.Error("md output should contain CODE_CONDUCT column")
+	}
+	if !strings.Contains(out, "RULESETS") {
+		t.Error("md output should contain RULESETS column")
 	}
 	if !strings.Contains(out, "|---") {
 		t.Error("md output should contain separator row")

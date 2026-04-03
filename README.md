@@ -1,6 +1,6 @@
 # gh repo-health-report
 
-A GitHub CLI extension that audits the health of GitHub repositories — checking for README, LICENSE, CODEOWNERS, SECURITY.md, CONTRIBUTING.md, staleness, topics, branch hygiene, and more.
+A GitHub CLI extension that audits the health of GitHub repositories — checking for README, LICENSE, CODE_OF_CONDUCT.md, CODEOWNERS, SECURITY.md, CONTRIBUTING.md, issue/PR templates, staleness, topics, branch hygiene, rulesets, secret scanning, push protection, and more.
 
 ## Installation
 
@@ -55,9 +55,12 @@ gh repo-health-report --org myorg --max-branches 30 --max-tags 50
 |---|---|
 | `missing-readme` | No README detected |
 | `missing-license` | No LICENSE detected |
+| `missing-code-of-conduct` | No CODE_OF_CONDUCT.md (root, `.github/`, or `docs/`) |
 | `missing-codeowners` | No CODEOWNERS file |
 | `missing-security` | No SECURITY.md |
 | `missing-contributing` | No CONTRIBUTING.md |
+| `missing-issue-templates` | No issue template (`.github/ISSUE_TEMPLATE/` dir or `ISSUE_TEMPLATE.md`) |
+| `missing-pr-template` | No pull request template |
 | `stale` | No push since `--since` threshold |
 | `has-description` | Repository description is empty |
 | `has-homepage` | Repository homepage URL is empty |
@@ -66,28 +69,38 @@ gh repo-health-report --org myorg --max-branches 30 --max-tags 50
 | `has-wiki` | Wiki is disabled |
 | `missing-dependabot` | No `.github/dependabot.yml` |
 | `missing-ci` | No files in `.github/workflows/` |
-| `no-branch-protection` | Default branch has no protection rules |
-| `no-vulnerability-alerts` | Dependabot security alerts are not enabled |
+| `no-branch-protection` | Default branch has no classic protection rules |
+| `no-rulesets` | No repository rulesets configured (rulesets are the modern replacement for classic branch protection) |
+| `no-vulnerability-alerts` | Dependabot security alerts are not enabled (shows `?` when admin access is required to check) |
+| `no-secret-scanning` | Secret scanning is not enabled (shows `?` when status cannot be determined) |
+| `no-push-protection` | Push protection is not enabled (shows `?` when status cannot be determined) |
 | `no-delete-branch-on-merge` | Auto-delete head branches is disabled |
 | `too-many-branches` | Branch count exceeds `--max-branches` (default 50) |
 | `has-stale-branches` | One or more non-default branches have no commits since `--since` |
 | `too-many-tags` | Tag count exceeds `--max-tags` (default 100) |
 
+> **Note:** Security settings such as `no-vulnerability-alerts`, `no-secret-scanning`, and `no-push-protection` require admin access to read. When the authenticated user lacks that access, the output column shows `?` instead of ✓ or ✗, and the check is not counted as a failure.
+
 ## Example output (table)
 
 ```
-REPO              STALE  DESCRIPTION  TOPICS  README  LICENSE  CODEOWNERS  SECURITY  CONTRIBUTING  ISSUES  WIKI  PROJECTS  DEPENDABOT  CI  BR_PROTECT  VULN_ALERTS  AUTO_DEL_BR  BRANCHES  STALE_BR  TAGS  OPEN_ISSUES  SIZE_KB
-owner/my-project  NO     ✓            3       ✓       ✓        ✗           ✗         ✗             ✓       ✓     ✗         ✓           ✓   ✗           ✓            ✗            4         1         12    12           4096
+REPO              STALE  DESCRIPTION  TOPICS  README  LICENSE  CODE_CONDUCT  CODEOWNERS  SECURITY  CONTRIBUTING  ISSUE_TMPL  PR_TMPL  ISSUES  WIKI  PROJECTS  DEPENDABOT  CI  BR_PROTECT  RULESETS  VULN_ALERTS  SECRET_SCAN  PUSH_PROT  AUTO_DEL_BR  BRANCHES  STALE_BR  TAGS  OPEN_ISSUES  SIZE_KB
+owner/my-project  NO     ✓            3       ✓       ✓        ✗             ✗           ✗         ✗             ✗           ✗        ✓       ✓     ✗         ✓           ✓   ✗           ✓         ✓            ?            ?          ✗            4         1         12    12           4096
 ```
 
 Columns:
 - **REPO** — full repository name
 - **STALE** — no push since `--since` threshold
 - **DESCRIPTION**, **TOPICS** — metadata completeness
-- **README**, **LICENSE**, **CODEOWNERS**, **SECURITY**, **CONTRIBUTING** — standard repo files
+- **README**, **LICENSE**, **CODE_CONDUCT**, **CODEOWNERS**, **SECURITY**, **CONTRIBUTING** — standard community files
+- **ISSUE_TMPL**, **PR_TMPL** — issue and pull request templates
 - **ISSUES**, **WIKI**, **PROJECTS** — GitHub features enabled
-- **DEPENDABOT**, **CI**, **BR_PROTECT** — automation and security baseline
-- **VULN_ALERTS** — Dependabot security alerts enabled
+- **DEPENDABOT**, **CI** — automation baseline
+- **BR_PROTECT** — classic branch protection on the default branch
+- **RULESETS** — repository rulesets configured (modern replacement for classic protection)
+- **VULN_ALERTS** — Dependabot security alerts enabled (`?` = cannot determine, admin access required)
+- **SECRET_SCAN** — secret scanning enabled (`?` = cannot determine)
+- **PUSH_PROT** — push protection enabled (`?` = cannot determine)
 - **AUTO_DEL_BR** — auto-delete head branches on merge enabled
 - **BRANCHES** — total branch count; **STALE_BR** — branches with no commits since `--since`
 - **TAGS** — total tag count
