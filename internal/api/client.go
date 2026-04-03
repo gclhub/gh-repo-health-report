@@ -12,6 +12,12 @@ type branchItem struct {
 	Name string `json:"name"`
 }
 
+// securityFeatureStatus holds the enabled/disabled status of a GitHub Advanced
+// Security feature as returned in the security_and_analysis API response.
+type securityFeatureStatus struct {
+	Status string `json:"status"`
+}
+
 // Repository represents a GitHub repository with health-check fields.
 type Repository struct {
 	FullName string `json:"full_name"`
@@ -33,17 +39,36 @@ type Repository struct {
 	OpenIssueCount      int  `json:"open_issues_count"`
 	SizeKB              int  `json:"size"`
 	DeleteBranchOnMerge bool `json:"delete_branch_on_merge"`
+	// security_and_analysis is returned by the GitHub API when the caller has
+	// push access or admin rights. Fields are empty strings when unavailable.
+	SecurityAndAnalysis struct {
+		SecretScanning struct {
+			securityFeatureStatus
+		} `json:"secret_scanning"`
+		SecretScanningPushProtection struct {
+			securityFeatureStatus
+		} `json:"secret_scanning_push_protection"`
+	} `json:"security_and_analysis"`
 	// Populated by PopulateFileChecks
-	HasReadme       bool `json:"has_readme"`
-	HasLicense      bool `json:"has_license"`
-	HasCodeowners   bool `json:"has_codeowners"`
-	HasSecurity     bool `json:"has_security"`
-	HasContributing bool `json:"has_contributing"`
+	HasReadme         bool `json:"has_readme"`
+	HasLicense        bool `json:"has_license"`
+	HasCodeOfConduct  bool `json:"has_code_of_conduct"`
+	HasCodeowners     bool `json:"has_codeowners"`
+	HasSecurity       bool `json:"has_security"`
+	HasContributing   bool `json:"has_contributing"`
+	HasIssueTemplates bool `json:"has_issue_templates"`
+	HasPRTemplate     bool `json:"has_pr_template"`
 	// Populated by PopulateExtendedChecks
 	HasDependabot              bool `json:"has_dependabot"`
 	HasCIWorkflows             bool `json:"has_ci_workflows"`
 	DefaultBranchProtected     bool `json:"default_branch_protected"`
+	HasRulesets                bool `json:"has_rulesets"`
 	VulnerabilityAlertsEnabled bool `json:"vulnerability_alerts_enabled"`
+	VulnerabilityAlertsUnknown bool `json:"vulnerability_alerts_unknown"`
+	SecretScanningEnabled      bool `json:"secret_scanning_enabled"`
+	SecretScanningUnknown      bool `json:"secret_scanning_unknown"`
+	PushProtectionEnabled      bool `json:"push_protection_enabled"`
+	PushProtectionUnknown      bool `json:"push_protection_unknown"`
 	// Populated by PopulateBranchTagChecks
 	BranchCount      int `json:"branch_count"`
 	StaleBranchCount int `json:"stale_branch_count"`
@@ -128,8 +153,9 @@ func (c *Client) CheckFileExists(owner, repo, path string) (bool, error) {
 	return true, nil
 }
 
-// PopulateFileChecks fills HasReadme, HasLicense, HasCodeowners, HasSecurity,
-// and HasContributing on repo.
+// PopulateFileChecks fills HasReadme, HasLicense, HasCodeOfConduct,
+// HasCodeowners, HasSecurity, HasContributing, HasIssueTemplates, and
+// HasPRTemplate on repo.
 func (c *Client) PopulateFileChecks(repo *Repository) error {
 	owner := repo.Owner.Login
 	name := repo.Name
@@ -151,6 +177,18 @@ func (c *Client) PopulateFileChecks(repo *Repository) error {
 		}
 	} else {
 		repo.HasLicense = true
+	}
+
+	// CODE_OF_CONDUCT.md – checked in root, .github/, and docs/
+	for _, p := range []string{"CODE_OF_CONDUCT.md", ".github/CODE_OF_CONDUCT.md", "docs/CODE_OF_CONDUCT.md"} {
+		ok, err := c.CheckFileExists(owner, name, p)
+		if err != nil {
+			return err
+		}
+		if ok {
+			repo.HasCodeOfConduct = true
+			break
+		}
 	}
 
 	// CODEOWNERS
@@ -189,6 +227,38 @@ func (c *Client) PopulateFileChecks(repo *Repository) error {
 		}
 	}
 
+	// Issue templates — CheckFileExists handles both directories and files, so
+	// checking .github/ISSUE_TEMPLATE will return true for the directory itself
+	// when it exists. Fall back to single-file variants for repos that use a
+	// simpler layout.
+	for _, p := range []string{".github/ISSUE_TEMPLATE", ".github/ISSUE_TEMPLATE.md", "ISSUE_TEMPLATE.md"} {
+		ok, err := c.CheckFileExists(owner, name, p)
+		if err != nil {
+			return err
+		}
+		if ok {
+			repo.HasIssueTemplates = true
+			break
+		}
+	}
+
+	// PR template – checked in several supported locations
+	for _, p := range []string{
+		".github/PULL_REQUEST_TEMPLATE.md",
+		".github/PULL_REQUEST_TEMPLATE",
+		"PULL_REQUEST_TEMPLATE.md",
+		"docs/PULL_REQUEST_TEMPLATE.md",
+	} {
+		ok, err := c.CheckFileExists(owner, name, p)
+		if err != nil {
+			return err
+		}
+		if ok {
+			repo.HasPRTemplate = true
+			break
+		}
+	}
+
 	return nil
 }
 
@@ -197,9 +267,11 @@ func (c *Client) GetCurrentUser(v interface{}) error {
 	return c.rest.Get("user", v)
 }
 
-// PopulateExtendedChecks fills HasDependabot, HasCIWorkflows, and
-// DefaultBranchProtected on repo. These require extra API round-trips beyond
-// the basic file checks.
+// PopulateExtendedChecks fills HasDependabot, HasCIWorkflows,
+// DefaultBranchProtected, HasRulesets, VulnerabilityAlertsEnabled,
+// VulnerabilityAlertsUnknown, SecretScanningEnabled, SecretScanningUnknown,
+// PushProtectionEnabled, and PushProtectionUnknown on repo. These require
+// extra API round-trips beyond the basic file checks.
 func (c *Client) PopulateExtendedChecks(repo *Repository) error {
 	owner := repo.Owner.Login
 	name := repo.Name
@@ -243,16 +315,48 @@ func (c *Client) PopulateExtendedChecks(repo *Repository) error {
 		repo.DefaultBranchProtected = true
 	}
 
-	// Vulnerability alerts — 204 means enabled; 404 means not enabled or
-	// insufficient permissions.
-	var noBody interface{}
-	err = c.rest.Get(fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name), &noBody)
+	// Repository rulesets — an array is returned; non-empty means rulesets
+	// are configured. Rulesets are the modern replacement for classic branch
+	// protection rules and are visible to anyone with read access.
+	var rulesets []interface{}
+	err = c.rest.Get(fmt.Sprintf("repos/%s/%s/rulesets", owner, name), &rulesets)
 	if err != nil {
 		if !isNotFound(err) && !isForbidden(err) {
 			return err
 		}
 	} else {
+		repo.HasRulesets = len(rulesets) > 0
+	}
+
+	// Vulnerability alerts — 204 means enabled; 404 means not enabled.
+	// A 403 means the caller lacks admin rights to check the setting; in
+	// that case we set VulnerabilityAlertsUnknown so the formatter can
+	// distinguish "disabled" from "can't check".
+	var noBody interface{}
+	err = c.rest.Get(fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name), &noBody)
+	if err != nil {
+		if isForbidden(err) {
+			repo.VulnerabilityAlertsUnknown = true
+		} else if !isNotFound(err) {
+			return err
+		}
+	} else {
 		repo.VulnerabilityAlertsEnabled = true
+	}
+
+	// Secret scanning and push protection — derived from the
+	// security_and_analysis field that is populated when GetRepo() is called.
+	// The field is only present in the API response when the caller has push
+	// or admin access; an empty Status string means the data is unavailable.
+	if sa := repo.SecurityAndAnalysis.SecretScanning.Status; sa != "" {
+		repo.SecretScanningEnabled = sa == "enabled"
+	} else {
+		repo.SecretScanningUnknown = true
+	}
+	if sa := repo.SecurityAndAnalysis.SecretScanningPushProtection.Status; sa != "" {
+		repo.PushProtectionEnabled = sa == "enabled"
+	} else {
+		repo.PushProtectionUnknown = true
 	}
 
 	return nil

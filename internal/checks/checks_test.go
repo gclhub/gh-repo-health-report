@@ -21,13 +21,19 @@ func baseRepo() *api.Repository {
 		HasWikiEnabled:             true,
 		HasReadme:                  true,
 		HasLicense:                 true,
+		HasCodeOfConduct:           true,
 		HasCodeowners:              true,
 		HasSecurity:                true,
 		HasContributing:            true,
+		HasIssueTemplates:          true,
+		HasPRTemplate:              true,
 		HasDependabot:              true,
 		HasCIWorkflows:             true,
 		DefaultBranchProtected:     true,
+		HasRulesets:                true,
 		VulnerabilityAlertsEnabled: true,
+		SecretScanningEnabled:      true,
+		PushProtectionEnabled:      true,
 		DeleteBranchOnMerge:        true,
 		BranchCount:                3,
 		StaleBranchCount:           0,
@@ -86,18 +92,24 @@ func TestEvaluate_MissingFiles(t *testing.T) {
 	repo := baseRepo()
 	repo.HasReadme = false
 	repo.HasLicense = false
+	repo.HasCodeOfConduct = false
 	repo.HasCodeowners = false
 	repo.HasSecurity = false
 	repo.HasContributing = false
+	repo.HasIssueTemplates = false
+	repo.HasPRTemplate = false
 	opts := checks.Options{Since: 180 * 24 * time.Hour}
 	result := checks.Evaluate(repo, opts)
 
 	for _, check := range []string{
 		checks.CheckMissingReadme,
 		checks.CheckMissingLicense,
+		checks.CheckMissingCodeOfConduct,
 		checks.CheckMissingCodeowners,
 		checks.CheckMissingSecurityMd,
 		checks.CheckMissingContributing,
+		checks.CheckMissingIssueTemplates,
+		checks.CheckMissingPRTemplate,
 	} {
 		if !contains(result.FailedChecks, check) {
 			t.Errorf("expected %s in FailedChecks, got %v", check, result.FailedChecks)
@@ -144,8 +156,17 @@ func TestEvaluate_ExtendedChecks_AllPresent(t *testing.T) {
 	if !result.DefaultBranchProtected {
 		t.Error("expected DefaultBranchProtected")
 	}
+	if !result.HasRulesets {
+		t.Error("expected HasRulesets")
+	}
 	if !result.VulnerabilityAlertsEnabled {
 		t.Error("expected VulnerabilityAlertsEnabled")
+	}
+	if !result.SecretScanningEnabled {
+		t.Error("expected SecretScanningEnabled")
+	}
+	if !result.PushProtectionEnabled {
+		t.Error("expected PushProtectionEnabled")
 	}
 	if !result.DeleteBranchOnMerge {
 		t.Error("expected DeleteBranchOnMerge")
@@ -160,7 +181,10 @@ func TestEvaluate_ExtendedChecks_Missing(t *testing.T) {
 	repo.HasDependabot = false
 	repo.HasCIWorkflows = false
 	repo.DefaultBranchProtected = false
+	repo.HasRulesets = false
 	repo.VulnerabilityAlertsEnabled = false
+	repo.SecretScanningEnabled = false
+	repo.PushProtectionEnabled = false
 	repo.DeleteBranchOnMerge = false
 	opts := checks.Options{Since: 180 * 24 * time.Hour}
 	result := checks.Evaluate(repo, opts)
@@ -169,12 +193,52 @@ func TestEvaluate_ExtendedChecks_Missing(t *testing.T) {
 		checks.CheckMissingDependabot,
 		checks.CheckMissingCI,
 		checks.CheckNoBranchProtection,
+		checks.CheckNoRulesets,
 		checks.CheckNoVulnerabilityAlerts,
+		checks.CheckNoSecretScanning,
+		checks.CheckNoPushProtection,
 		checks.CheckNoDeleteBranchOnMerge,
 	} {
 		if !contains(result.FailedChecks, check) {
 			t.Errorf("expected %s in FailedChecks, got %v", check, result.FailedChecks)
 		}
+	}
+}
+
+func TestEvaluate_VulnerabilityAlerts_Unknown(t *testing.T) {
+	repo := baseRepo()
+	repo.VulnerabilityAlertsEnabled = false
+	repo.VulnerabilityAlertsUnknown = true
+	opts := checks.Options{Since: 180 * 24 * time.Hour}
+	result := checks.Evaluate(repo, opts)
+
+	// When unknown, the check should NOT appear in FailedChecks.
+	if contains(result.FailedChecks, checks.CheckNoVulnerabilityAlerts) {
+		t.Errorf("expected %s NOT in FailedChecks when status is unknown, got %v", checks.CheckNoVulnerabilityAlerts, result.FailedChecks)
+	}
+}
+
+func TestEvaluate_SecretScanning_Unknown(t *testing.T) {
+	repo := baseRepo()
+	repo.SecretScanningEnabled = false
+	repo.SecretScanningUnknown = true
+	opts := checks.Options{Since: 180 * 24 * time.Hour}
+	result := checks.Evaluate(repo, opts)
+
+	if contains(result.FailedChecks, checks.CheckNoSecretScanning) {
+		t.Errorf("expected %s NOT in FailedChecks when status is unknown, got %v", checks.CheckNoSecretScanning, result.FailedChecks)
+	}
+}
+
+func TestEvaluate_PushProtection_Unknown(t *testing.T) {
+	repo := baseRepo()
+	repo.PushProtectionEnabled = false
+	repo.PushProtectionUnknown = true
+	opts := checks.Options{Since: 180 * 24 * time.Hour}
+	result := checks.Evaluate(repo, opts)
+
+	if contains(result.FailedChecks, checks.CheckNoPushProtection) {
+		t.Errorf("expected %s NOT in FailedChecks when status is unknown, got %v", checks.CheckNoPushProtection, result.FailedChecks)
 	}
 }
 
