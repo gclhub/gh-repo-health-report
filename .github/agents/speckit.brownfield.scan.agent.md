@@ -1,6 +1,5 @@
 ---
-description: Auto-discover project structure, tech stack, frameworks, and architecture
-  patterns
+description: "Auto-discover project structure, tech stack, frameworks, and architecture patterns"
 ---
 
 
