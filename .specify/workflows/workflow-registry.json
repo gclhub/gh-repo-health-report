@@ -5,9 +5,7 @@
       "name": "Full SDD Cycle",
       "version": "1.0.0",
       "description": "Runs specify \u2192 plan \u2192 tasks \u2192 implement with review gates",
-      "source": "bundled",
-      "installed_at": "2026-06-01T18:27:37.542907+00:00",
-      "updated_at": "2026-06-01T18:27:37.542915+00:00"
+      "source": "bundled"
     }
   }
 }
