@@ -2,6 +2,7 @@ package formatter_test
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -92,6 +93,40 @@ func TestFormatTable(t *testing.T) {
 	}
 }
 
+func TestFormatTable_ShowsSkippedChecks(t *testing.T) {
+	repo := &api.Repository{
+		FullName:                   "owner/skipped",
+		Name:                       "skipped",
+		HasReadme:                  false,
+		HasLicense:                 false,
+		HasIssuesEnabled:           false,
+		SecretScanningEnabled:      false,
+		SecretScanningUnknown:      false,
+		PushProtectionEnabled:      false,
+		PushProtectionUnknown:      false,
+		VulnerabilityAlertsEnabled: false,
+		VulnerabilityAlertsUnknown: false,
+	}
+	result := checks.Evaluate(repo, checks.Options{Since: 180 * 24 * time.Hour})
+	result.SkippedChecks = []checks.SkippedCheck{
+		{Name: checks.CheckMissingReadme, Reason: "Ignored by profile"},
+		{Name: checks.CheckHasIssues, Reason: "Ignored by profile"},
+		{Name: checks.CheckNoSecretScanning, Reason: "Ignored by profile"},
+	}
+
+	var buf bytes.Buffer
+	if err := formatter.Format([]*checks.Result{result}, "table", &buf); err != nil {
+		t.Fatalf("Format table error: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "[SKIP]") {
+		t.Fatalf("expected [SKIP] marker in table output, got:\n%s", out)
+	}
+	if got := strings.Count(out, "[SKIP]"); got < 3 {
+		t.Fatalf("expected at least 3 [SKIP] markers for skipped checks, got %d:\n%s", got, out)
+	}
+}
+
 func TestFormatJSON(t *testing.T) {
 	var buf bytes.Buffer
 	if err := formatter.Format(sampleResults(), "json", &buf); err != nil {
@@ -106,6 +141,9 @@ func TestFormatJSON(t *testing.T) {
 	}
 	if rows[0]["repo"] != "owner/repo" {
 		t.Errorf("expected repo=owner/repo, got %v", rows[0]["repo"])
+	}
+	if _, ok := rows[0]["skipped_checks"]; ok {
+		t.Errorf("JSON should omit skipped_checks when there are no skipped checks")
 	}
 	for _, field := range []string{
 		"has_readme", "has_code_of_conduct", "has_codeowners",
@@ -131,6 +169,37 @@ func TestFormatJSON(t *testing.T) {
 	}
 }
 
+func TestFormatJSON_SkippedChecksIncludeReasons(t *testing.T) {
+	result := sampleResults()[0]
+	result.SkippedChecks = []checks.SkippedCheck{
+		{Name: checks.CheckMissingCodeowners, Reason: "Ignored by profile: open-source"},
+	}
+
+	var buf bytes.Buffer
+	if err := formatter.Format([]*checks.Result{result}, "json", &buf); err != nil {
+		t.Fatalf("Format json error: %v", err)
+	}
+
+	var rows []struct {
+		SkippedChecks []struct {
+			Check  string `json:"check"`
+			Reason string `json:"reason"`
+		} `json:"skipped_checks"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &rows); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(rows) != 1 || len(rows[0].SkippedChecks) != 1 {
+		t.Fatalf("expected one skipped check, got %#v", rows)
+	}
+	if rows[0].SkippedChecks[0].Check != checks.CheckMissingCodeowners {
+		t.Errorf("expected skipped check name %q, got %q", checks.CheckMissingCodeowners, rows[0].SkippedChecks[0].Check)
+	}
+	if rows[0].SkippedChecks[0].Reason != "Ignored by profile: open-source" {
+		t.Errorf("expected skipped check reason, got %q", rows[0].SkippedChecks[0].Reason)
+	}
+}
+
 func TestFormatCSV(t *testing.T) {
 	var buf bytes.Buffer
 	if err := formatter.Format(sampleResults(), "csv", &buf); err != nil {
@@ -150,6 +219,39 @@ func TestFormatCSV(t *testing.T) {
 	}
 	if !strings.Contains(lines[1], "owner/repo") {
 		t.Errorf("data row should contain repo name: %s", lines[1])
+	}
+}
+
+func TestFormatCSV_ShowsSkippedChecks(t *testing.T) {
+	result := sampleResults()[0]
+	result.SkippedChecks = []checks.SkippedCheck{
+		{Name: checks.CheckMissingReadme, Reason: "Ignored by profile"},
+		{Name: checks.CheckNoSecretScanning, Reason: "Ignored by profile"},
+	}
+
+	var buf bytes.Buffer
+	if err := formatter.Format([]*checks.Result{result}, "csv", &buf); err != nil {
+		t.Fatalf("Format csv error: %v", err)
+	}
+	rows, err := csv.NewReader(strings.NewReader(buf.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("invalid CSV: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected header + one row, got %d rows", len(rows))
+	}
+
+	columns := map[string]int{}
+	for i, name := range rows[0] {
+		columns[name] = i
+	}
+	for _, name := range []string{"README", "SECRET_SCAN"} {
+		if _, ok := columns[name]; !ok {
+			t.Fatalf("expected CSV header to contain %s, got %#v", name, rows[0])
+		}
+		if rows[1][columns[name]] != "SKIPPED" {
+			t.Errorf("expected %s column to be SKIPPED, got %q", name, rows[1][columns[name]])
+		}
 	}
 }
 
@@ -173,5 +275,37 @@ func TestFormatMD(t *testing.T) {
 	}
 	if !strings.Contains(out, "owner/repo") {
 		t.Error("md output should contain repo name")
+	}
+}
+
+func TestFormatMD_ShowsSkippedChecks(t *testing.T) {
+	result := sampleResults()[0]
+	result.SkippedChecks = []checks.SkippedCheck{
+		{Name: checks.CheckMissingReadme, Reason: "Ignored by profile"},
+		{Name: checks.CheckNoSecretScanning, Reason: "Ignored by profile"},
+	}
+
+	var buf bytes.Buffer
+	if err := formatter.Format([]*checks.Result{result}, "md", &buf); err != nil {
+		t.Fatalf("Format md error: %v", err)
+	}
+	out := buf.String()
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected header, separator, and one row, got %d lines:\n%s", len(lines), out)
+	}
+	headers := strings.Split(strings.Trim(lines[0], "|"), "|")
+	values := strings.Split(strings.Trim(lines[2], "|"), "|")
+	columns := map[string]int{}
+	for i, name := range headers {
+		columns[strings.TrimSpace(name)] = i
+	}
+	for _, name := range []string{"README", "SECRET_SCAN"} {
+		if _, ok := columns[name]; !ok {
+			t.Fatalf("expected markdown header to contain %s, got %#v", name, headers)
+		}
+		if strings.TrimSpace(values[columns[name]]) != "[SKIP]" {
+			t.Errorf("expected %s column to be [SKIP], got %q", name, values[columns[name]])
+		}
 	}
 }

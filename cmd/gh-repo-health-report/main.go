@@ -31,6 +31,8 @@ func rootCmd() *cobra.Command {
 		failOn          string
 		maxBranches     int
 		maxTags         int
+		profile         string
+		profileConfig   string
 	)
 
 	cmd := &cobra.Command{
@@ -46,6 +48,49 @@ func rootCmd() *cobra.Command {
 			sinceThreshold, err := parseSince(since)
 			if err != nil {
 				return fmt.Errorf("invalid --since value %q: %w", since, err)
+			}
+
+			// Resolve profile: --profile flag > config file > nil
+			var selectedProfile *checks.Profile
+			var autoMode bool
+			var cfg *checks.Config
+
+			if profile != "" {
+				// Explicit --profile flag takes precedence
+				if strings.EqualFold(profile, "auto") {
+					// Auto-detection will be done per-repository
+					autoMode = true
+				} else {
+					selectedProfile = checks.GetProfile(profile)
+					if selectedProfile == nil {
+						return fmt.Errorf("unknown profile %q; valid profiles: open-source, internal-service, application, archived, prototype, auto", profile)
+					}
+				}
+			} else {
+				// Try loading config file
+				if profileConfig != "" {
+					cfg, err = checks.LoadConfig(profileConfig)
+					if err != nil {
+						return fmt.Errorf("failed to load config file: %w", err)
+					}
+				} else {
+					cfg, err = checks.DiscoverConfig()
+					if err != nil {
+						return fmt.Errorf("failed to discover config file: %w", err)
+					}
+				}
+
+				if cfg != nil && cfg.DefaultProfile != "" {
+					if strings.EqualFold(cfg.DefaultProfile, "auto") {
+						// Auto mode from config
+						autoMode = true
+					} else {
+						selectedProfile = checks.GetProfile(cfg.DefaultProfile)
+						if selectedProfile == nil {
+							return fmt.Errorf("unknown profile %q in config file; valid profiles: open-source, internal-service, application, archived, prototype, auto", cfg.DefaultProfile)
+						}
+					}
+				}
 			}
 
 			client, err := api.NewClient()
@@ -81,13 +126,9 @@ func rootCmd() *cobra.Command {
 			}
 
 			// Populate file checks and evaluate
-			opts := checks.Options{
-				Since:       sinceThreshold,
-				MaxBranches: maxBranches,
-				MaxTags:     maxTags,
-			}
 			sinceTime := time.Now().Add(-sinceThreshold)
 			var results []*checks.Result
+			var failOnResults []*checks.Result
 			for _, repo := range repoList {
 				if err := client.PopulateFileChecks(repo); err != nil {
 					return fmt.Errorf("failed to check files for %s: %w", repo.FullName, err)
@@ -98,7 +139,26 @@ func rootCmd() *cobra.Command {
 				if err := client.PopulateBranchTagChecks(repo, sinceTime); err != nil {
 					return fmt.Errorf("failed to run branch/tag checks for %s: %w", repo.FullName, err)
 				}
+
+				// Determine profile for this repository
+				repoProfile := selectedProfile
+				if autoMode {
+					// Auto-detect profile based on repository metadata
+					repoProfile = checks.DetectProfile(repo)
+				}
+
+				opts := checks.Options{
+					Since:       sinceThreshold,
+					MaxBranches: maxBranches,
+					MaxTags:     maxTags,
+					Profile:     repoProfile,
+				}
 				results = append(results, checks.Evaluate(repo, opts))
+				if failOn != "" {
+					failOnOpts := opts
+					failOnOpts.Profile = nil
+					failOnResults = append(failOnResults, checks.Evaluate(repo, failOnOpts))
+				}
 			}
 
 			// Open output writer
@@ -118,9 +178,13 @@ func rootCmd() *cobra.Command {
 
 			// --fail-on logic
 			if failOn != "" {
-				failChecks := strings.Split(failOn, ",")
-				for _, r := range results {
-					if shouldFail(r.FailedChecks, failChecks) {
+				failChecks := splitCheckNames(failOn)
+				for i, r := range results {
+					failOnFailedChecks := r.FailedChecks
+					if i < len(failOnResults) {
+						failOnFailedChecks = failOnResults[i].FailedChecks
+					}
+					if shouldFail(r.FailedChecks, failOnFailedChecks, failChecks) {
 						os.Exit(1)
 					}
 				}
@@ -141,6 +205,8 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&failOn, "fail-on", "", "Comma-separated check names; exit 1 if any repo fails (use 'any' to fail on any failure)")
 	cmd.Flags().IntVar(&maxBranches, "max-branches", 50, "Branch count threshold for too-many-branches check (0 to disable)")
 	cmd.Flags().IntVar(&maxTags, "max-tags", 100, "Tag count threshold for too-many-tags check (0 to disable)")
+	cmd.Flags().StringVar(&profile, "profile", "", "Policy profile to apply (open-source, internal-service, application, archived, prototype, auto)")
+	cmd.Flags().StringVar(&profileConfig, "profile-config", "", "Path to config file with default profile (YAML or JSON)")
 
 	return cmd
 }
@@ -176,13 +242,27 @@ func parseSince(s string) (time.Duration, error) {
 	}
 }
 
-// shouldFail returns true if any of the wanted checks are in failed.
-func shouldFail(failed, wanted []string) bool {
-	for _, w := range wanted {
-		if w == "any" && len(failed) > 0 {
-			return true
+func splitCheckNames(s string) []string {
+	parts := strings.Split(s, ",")
+	checks := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if check := strings.TrimSpace(part); check != "" {
+			checks = append(checks, check)
 		}
-		for _, f := range failed {
+	}
+	return checks
+}
+
+// shouldFail returns true if any wanted checks should fail.
+func shouldFail(failed, failOnFailed, wanted []string) bool {
+	for _, w := range wanted {
+		if w == "any" {
+			if len(failed) > 0 {
+				return true
+			}
+			continue
+		}
+		for _, f := range failOnFailed {
 			if f == w {
 				return true
 			}

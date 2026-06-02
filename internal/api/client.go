@@ -32,6 +32,7 @@ type Repository struct {
 	DefaultBranch      string    `json:"default_branch"`
 	Fork               bool      `json:"fork"`
 	Archived           bool      `json:"archived"`
+	Private            bool      `json:"private"`
 	HasIssuesEnabled   bool      `json:"has_issues"`
 	HasProjectsEnabled bool      `json:"has_projects"`
 	HasWikiEnabled     bool      `json:"has_wiki"`

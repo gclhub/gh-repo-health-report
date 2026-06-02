@@ -48,6 +48,71 @@ gh repo-health-report --org myorg --max-branches 30 --max-tags 50
 | `--fail-on` | | Comma-separated check names; exit 1 if any repo fails them (use `any`) |
 | `--max-branches` | `50` | Branch count threshold for `too-many-branches` check (0 to disable) |
 | `--max-tags` | `100` | Tag count threshold for `too-many-tags` check (0 to disable) |
+| `--profile` | | Policy profile to apply: `open-source`, `internal-service`, `application`, `archived`, `prototype`, `auto` |
+| `--profile-config` | | Path to config file with default profile (YAML or JSON) |
+
+## Policy Profiles
+
+Policy profiles allow you to tailor health check expectations based on repository type, eliminating false positives and making health scores contextually relevant.
+
+### Using Profiles
+
+```bash
+# Apply open-source profile (requires README, LICENSE, CODE_OF_CONDUCT, etc.)
+gh repo-health-report --repo owner/library --profile open-source
+
+# Apply internal-service profile (requires CODEOWNERS, CI, branch protection, etc.)
+gh repo-health-report --org myorg --profile internal-service
+
+# Auto-detect profile based on repository metadata
+gh repo-health-report --org myorg --profile auto
+
+# Set organization-wide default profile via config file
+echo "default_profile: internal-service" > .gh-repo-health-report.yml
+gh repo-health-report --org myorg
+```
+
+### Available Profiles
+
+| Profile | Description | Key Requirements | Key Skips |
+|---------|-------------|------------------|-----------|
+| `open-source` | Public libraries for community collaboration | README, LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY, issues enabled, security scanning | CODEOWNERS, branch protection, dependabot, auto-delete branches |
+| `internal-service` | Production services and APIs | README, CODEOWNERS, CI, branch protection, rulesets, security features, auto-delete branches | CODE_OF_CONDUCT, CONTRIBUTING, PR templates, public features (issues, wiki, projects) |
+| `application` | End-user applications (web/mobile/desktop) | README, LICENSE, CI, security features | CODE_OF_CONDUCT, CONTRIBUTING, templates, public features, governance policies |
+| `archived` | No longer under active development | README, LICENSE | Everything else (staleness, CI, governance, security) |
+| `prototype` | Experimental or proof-of-concept | README, description | Everything else (governance, security, CI, staleness) |
+| `auto` | Auto-detect based on repository metadata | Varies by detected profile | Varies by detected profile |
+
+### Auto-Detection Rules
+
+When using `--profile auto`, the tool automatically selects the appropriate profile based on repository metadata:
+
+1. **Archived status** → `archived` profile
+2. **Topics** (category priority order, regardless of topic list order):
+   - `prototype`, `experimental`, `poc`, `spike` → `prototype`
+   - `library`, `package`, `npm-package`, `gem`, `pypi` → `open-source`
+   - `service`, `api`, `microservice` → `internal-service`
+   - `app`, `webapp`, `mobile-app`, `desktop` → `application`
+3. **Public repository** (no topics) → `open-source`
+4. **Private repository** (no topics) → `internal-service`
+
+### Config File Format
+
+Create `.gh-repo-health-report.yml`, `.gh-repo-health-report.yaml`, or `.gh-repo-health-report.json` in your current directory or home directory:
+
+```yaml
+default_profile: internal-service
+```
+
+Or JSON:
+
+```json
+{
+  "default_profile": "internal-service"
+}
+```
+
+**Precedence**: `--profile` flag > config file > no profile (all checks evaluated)
 
 ## Check names
 

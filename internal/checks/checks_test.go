@@ -321,16 +321,156 @@ func TestEvaluate_TagCountWithinLimit(t *testing.T) {
 	}
 }
 
-func TestEvaluate_DefaultBranchCountThresholds(t *testing.T) {
-	// With MaxBranches=0, default of 50 should apply.
+func TestEvaluate_ZeroBranchAndTagThresholdsDisableChecks(t *testing.T) {
 	repo := baseRepo()
 	repo.BranchCount = 51
-	opts := checks.Options{Since: 180 * 24 * time.Hour} // MaxBranches=0 → default 50
+	repo.TagCount = 101
+	opts := checks.Options{Since: 180 * 24 * time.Hour}
 	result := checks.Evaluate(repo, opts)
 
-	if !contains(result.FailedChecks, checks.CheckTooManyBranches) {
-		t.Errorf("expected %s in FailedChecks with default threshold, got %v", checks.CheckTooManyBranches, result.FailedChecks)
+	if contains(result.FailedChecks, checks.CheckTooManyBranches) {
+		t.Errorf("expected %s not in FailedChecks when threshold is disabled, got %v", checks.CheckTooManyBranches, result.FailedChecks)
 	}
+	if contains(result.FailedChecks, checks.CheckTooManyTags) {
+		t.Errorf("expected %s not in FailedChecks when threshold is disabled, got %v", checks.CheckTooManyTags, result.FailedChecks)
+	}
+}
+
+// TestEvaluate_WithNilProfile verifies backward compatibility when no profile is set.
+func TestEvaluate_WithNilProfile(t *testing.T) {
+	repo := baseRepo()
+	repo.HasReadme = false
+	repo.HasLicense = false
+
+	opts := checks.Options{Profile: nil}
+	result := checks.Evaluate(repo, opts)
+
+	// With nil profile, all checks should be evaluated (backward compatibility)
+	if !contains(result.FailedChecks, checks.CheckMissingReadme) {
+		t.Error("Expected missing-readme in FailedChecks with nil profile")
+	}
+	if !contains(result.FailedChecks, checks.CheckMissingLicense) {
+		t.Error("Expected missing-license in FailedChecks with nil profile")
+	}
+	if len(result.SkippedChecks) > 0 {
+		t.Errorf("Expected no skipped checks with nil profile, got %d", len(result.SkippedChecks))
+	}
+}
+
+// TestEvaluate_WithOpenSourceProfile verifies profile-aware evaluation with open-source profile.
+func TestEvaluate_WithOpenSourceProfile(t *testing.T) {
+	repo := baseRepo()
+	repo.HasReadme = false         // Required in open-source profile
+	repo.HasCodeowners = false     // Ignored in open-source profile
+	repo.HasIssueTemplates = false // Recommended in open-source profile
+
+	profile := checks.GetProfile("open-source")
+	opts := checks.Options{Profile: profile}
+	result := checks.Evaluate(repo, opts)
+
+	// README is required - should be in FailedChecks
+	if !contains(result.FailedChecks, checks.CheckMissingReadme) {
+		t.Error("Expected missing-readme in FailedChecks (required)")
+	}
+
+	// Codeowners is ignored - should be in SkippedChecks, not FailedChecks
+	if contains(result.FailedChecks, checks.CheckMissingCodeowners) {
+		t.Error("Expected missing-codeowners NOT in FailedChecks (ignored)")
+	}
+	if !containsSkipped(result.SkippedChecks, checks.CheckMissingCodeowners) {
+		t.Error("Expected missing-codeowners in SkippedChecks")
+	}
+
+	// Issue templates is recommended - should be in FailedChecks
+	if !contains(result.FailedChecks, checks.CheckMissingIssueTemplates) {
+		t.Error("Expected missing-issue-templates in FailedChecks (recommended)")
+	}
+}
+
+// TestEvaluate_WithArchivedProfile verifies archived profile skips most checks.
+func TestEvaluate_WithArchivedProfile(t *testing.T) {
+	repo := baseRepo()
+	repo.HasReadme = false                                // Required
+	repo.HasLicense = false                               // Required
+	repo.HasCodeowners = false                            // Ignored
+	repo.HasCIWorkflows = false                           // Ignored
+	repo.PushedAt = time.Now().Add(-365 * 24 * time.Hour) // Make it stale
+
+	profile := checks.GetProfile("archived")
+	opts := checks.Options{Profile: profile}
+	result := checks.Evaluate(repo, opts)
+
+	// README and License are required
+	if !contains(result.FailedChecks, checks.CheckMissingReadme) {
+		t.Error("Expected missing-readme in FailedChecks")
+	}
+	if !contains(result.FailedChecks, checks.CheckMissingLicense) {
+		t.Error("Expected missing-license in FailedChecks")
+	}
+
+	// Stale, Codeowners, and CI are ignored
+	if contains(result.FailedChecks, checks.CheckStale) {
+		t.Error("Expected stale NOT in FailedChecks (ignored)")
+	}
+	if contains(result.FailedChecks, checks.CheckMissingCodeowners) {
+		t.Error("Expected missing-codeowners NOT in FailedChecks (ignored)")
+	}
+	if contains(result.FailedChecks, checks.CheckMissingCI) {
+		t.Error("Expected missing-ci NOT in FailedChecks (ignored)")
+	}
+
+	// Verify skipped checks are recorded
+	if !containsSkipped(result.SkippedChecks, checks.CheckStale) {
+		t.Error("Expected stale in SkippedChecks")
+	}
+}
+
+// TestEvaluate_WithPrototypeProfile verifies prototype profile is very lenient.
+func TestEvaluate_WithPrototypeProfile(t *testing.T) {
+	repo := baseRepo()
+	repo.HasReadme = false
+	repo.Description = "" // Empty description
+	repo.HasCodeowners = false
+	repo.HasCIWorkflows = false
+	repo.DefaultBranchProtected = false
+	repo.HasDependabot = false
+
+	profile := checks.GetProfile("prototype")
+	opts := checks.Options{Profile: profile}
+	result := checks.Evaluate(repo, opts)
+
+	// Only README and description are required
+	if !contains(result.FailedChecks, checks.CheckMissingReadme) {
+		t.Error("Expected missing-readme in FailedChecks")
+	}
+	if !contains(result.FailedChecks, checks.CheckHasDescription) {
+		t.Error("Expected has-description in FailedChecks")
+	}
+
+	// Everything else is ignored
+	if contains(result.FailedChecks, checks.CheckMissingCodeowners) {
+		t.Error("Expected missing-codeowners NOT in FailedChecks (ignored)")
+	}
+	if contains(result.FailedChecks, checks.CheckMissingCI) {
+		t.Error("Expected missing-ci NOT in FailedChecks (ignored)")
+	}
+	if contains(result.FailedChecks, checks.CheckNoBranchProtection) {
+		t.Error("Expected no-branch-protection NOT in FailedChecks (ignored)")
+	}
+
+	// Should have many skipped checks
+	if len(result.SkippedChecks) < 20 {
+		t.Errorf("Expected at least 20 skipped checks in prototype profile, got %d", len(result.SkippedChecks))
+	}
+}
+
+func containsSkipped(skipped []checks.SkippedCheck, name string) bool {
+	for _, s := range skipped {
+		if s.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func contains(slice []string, s string) bool {
