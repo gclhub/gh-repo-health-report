@@ -128,6 +128,7 @@ func rootCmd() *cobra.Command {
 			// Populate file checks and evaluate
 			sinceTime := time.Now().Add(-sinceThreshold)
 			var results []*checks.Result
+			var failOnResults []*checks.Result
 			for _, repo := range repoList {
 				if err := client.PopulateFileChecks(repo); err != nil {
 					return fmt.Errorf("failed to check files for %s: %w", repo.FullName, err)
@@ -153,6 +154,11 @@ func rootCmd() *cobra.Command {
 					Profile:     repoProfile,
 				}
 				results = append(results, checks.Evaluate(repo, opts))
+				if failOn != "" {
+					failOnOpts := opts
+					failOnOpts.Profile = nil
+					failOnResults = append(failOnResults, checks.Evaluate(repo, failOnOpts))
+				}
 			}
 
 			// Open output writer
@@ -173,8 +179,12 @@ func rootCmd() *cobra.Command {
 			// --fail-on logic
 			if failOn != "" {
 				failChecks := strings.Split(failOn, ",")
-				for _, r := range results {
-					if shouldFail(r.FailedChecks, failChecks) {
+				for i, r := range results {
+					failOnFailedChecks := r.FailedChecks
+					if i < len(failOnResults) {
+						failOnFailedChecks = failOnResults[i].FailedChecks
+					}
+					if shouldFail(r.FailedChecks, failOnFailedChecks, failChecks) {
 						os.Exit(1)
 					}
 				}
@@ -233,12 +243,12 @@ func parseSince(s string) (time.Duration, error) {
 }
 
 // shouldFail returns true if any of the wanted checks are in failed.
-func shouldFail(failed, wanted []string) bool {
+func shouldFail(failed, failOnFailed, wanted []string) bool {
 	for _, w := range wanted {
 		if w == "any" && len(failed) > 0 {
 			return true
 		}
-		for _, f := range failed {
+		for _, f := range failOnFailed {
 			if f == w {
 				return true
 			}
