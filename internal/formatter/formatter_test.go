@@ -246,6 +246,9 @@ func TestFormatCSV_ShowsSkippedChecks(t *testing.T) {
 		columns[name] = i
 	}
 	for _, name := range []string{"README", "SECRET_SCAN"} {
+		if _, ok := columns[name]; !ok {
+			t.Fatalf("expected CSV header to contain %s, got %#v", name, rows[0])
+		}
 		if rows[1][columns[name]] != "SKIPPED" {
 			t.Errorf("expected %s column to be SKIPPED, got %q", name, rows[1][columns[name]])
 		}
@@ -287,7 +290,22 @@ func TestFormatMD_ShowsSkippedChecks(t *testing.T) {
 		t.Fatalf("Format md error: %v", err)
 	}
 	out := buf.String()
-	if got := strings.Count(out, "[SKIP]"); got < 2 {
-		t.Fatalf("expected skipped check markers in md output, got %d:\n%s", got, out)
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected header, separator, and one row, got %d lines:\n%s", len(lines), out)
+	}
+	headers := strings.Split(strings.Trim(lines[0], "|"), "|")
+	values := strings.Split(strings.Trim(lines[2], "|"), "|")
+	columns := map[string]int{}
+	for i, name := range headers {
+		columns[strings.TrimSpace(name)] = i
+	}
+	for _, name := range []string{"README", "SECRET_SCAN"} {
+		if _, ok := columns[name]; !ok {
+			t.Fatalf("expected markdown header to contain %s, got %#v", name, headers)
+		}
+		if strings.TrimSpace(values[columns[name]]) != "[SKIP]" {
+			t.Errorf("expected %s column to be [SKIP], got %q", name, values[columns[name]])
+		}
 	}
 }
