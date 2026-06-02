@@ -57,7 +57,7 @@ func rootCmd() *cobra.Command {
 
 			if profile != "" {
 				// Explicit --profile flag takes precedence
-				if profile == "auto" {
+				if strings.EqualFold(profile, "auto") {
 					// Auto-detection will be done per-repository
 					autoMode = true
 				} else {
