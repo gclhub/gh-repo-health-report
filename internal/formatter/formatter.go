@@ -38,6 +38,38 @@ func staleStr(v bool) string {
 	return "NO"
 }
 
+func skippedChecksSet(r *checks.Result) map[string]struct{} {
+	if len(r.SkippedChecks) == 0 {
+		return nil
+	}
+	skipped := make(map[string]struct{}, len(r.SkippedChecks))
+	for _, sc := range r.SkippedChecks {
+		skipped[sc.Name] = struct{}{}
+	}
+	return skipped
+}
+
+func checkDisplay(checkName string, passed bool, skipped map[string]struct{}) string {
+	if _, ok := skipped[checkName]; ok {
+		return "[SKIP]"
+	}
+	return bool2check(passed)
+}
+
+func tristateCheckDisplay(checkName string, ok, unknown bool, skipped map[string]struct{}) string {
+	if _, isSkipped := skipped[checkName]; isSkipped {
+		return "[SKIP]"
+	}
+	return tristate(ok, unknown)
+}
+
+func staleDisplay(stale bool, skipped map[string]struct{}) string {
+	if _, isSkipped := skipped[checks.CheckStale]; isSkipped {
+		return "[SKIP]"
+	}
+	return staleStr(stale)
+}
+
 // Format writes results in the requested format to w.
 func Format(results []*checks.Result, format string, w io.Writer) error {
 	switch format {
@@ -56,30 +88,31 @@ func formatTable(results []*checks.Result, w io.Writer) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, tableHeader)
 	for _, r := range results {
+		skipped := skippedChecksSet(r)
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\n",
 			r.Repository.FullName,
-			staleStr(r.Stale),
-			bool2check(r.HasDescription),
+			staleDisplay(r.Stale, skipped),
+			checkDisplay(checks.CheckHasDescription, r.HasDescription, skipped),
 			r.TopicsCount,
-			bool2check(r.HasReadme),
-			bool2check(r.HasLicense),
-			bool2check(r.HasCodeOfConduct),
-			bool2check(r.HasCodeowners),
-			bool2check(r.HasSecurity),
-			bool2check(r.HasContributing),
-			bool2check(r.HasIssueTemplates),
-			bool2check(r.HasPRTemplate),
-			bool2check(r.HasIssues),
-			bool2check(r.HasWiki),
-			bool2check(r.HasProjects),
-			bool2check(r.HasDependabot),
-			bool2check(r.HasCIWorkflows),
-			bool2check(r.DefaultBranchProtected),
-			bool2check(r.HasRulesets),
-			tristate(r.VulnerabilityAlertsEnabled, r.VulnerabilityAlertsUnknown),
-			tristate(r.SecretScanningEnabled, r.SecretScanningUnknown),
-			tristate(r.PushProtectionEnabled, r.PushProtectionUnknown),
-			bool2check(r.DeleteBranchOnMerge),
+			checkDisplay(checks.CheckMissingReadme, r.HasReadme, skipped),
+			checkDisplay(checks.CheckMissingLicense, r.HasLicense, skipped),
+			checkDisplay(checks.CheckMissingCodeOfConduct, r.HasCodeOfConduct, skipped),
+			checkDisplay(checks.CheckMissingCodeowners, r.HasCodeowners, skipped),
+			checkDisplay(checks.CheckMissingSecurityMd, r.HasSecurity, skipped),
+			checkDisplay(checks.CheckMissingContributing, r.HasContributing, skipped),
+			checkDisplay(checks.CheckMissingIssueTemplates, r.HasIssueTemplates, skipped),
+			checkDisplay(checks.CheckMissingPRTemplate, r.HasPRTemplate, skipped),
+			checkDisplay(checks.CheckHasIssues, r.HasIssues, skipped),
+			checkDisplay(checks.CheckHasWiki, r.HasWiki, skipped),
+			checkDisplay(checks.CheckHasProjects, r.HasProjects, skipped),
+			checkDisplay(checks.CheckMissingDependabot, r.HasDependabot, skipped),
+			checkDisplay(checks.CheckMissingCI, r.HasCIWorkflows, skipped),
+			checkDisplay(checks.CheckNoBranchProtection, r.DefaultBranchProtected, skipped),
+			checkDisplay(checks.CheckNoRulesets, r.HasRulesets, skipped),
+			tristateCheckDisplay(checks.CheckNoVulnerabilityAlerts, r.VulnerabilityAlertsEnabled, r.VulnerabilityAlertsUnknown, skipped),
+			tristateCheckDisplay(checks.CheckNoSecretScanning, r.SecretScanningEnabled, r.SecretScanningUnknown, skipped),
+			tristateCheckDisplay(checks.CheckNoPushProtection, r.PushProtectionEnabled, r.PushProtectionUnknown, skipped),
+			checkDisplay(checks.CheckNoDeleteBranchOnMerge, r.DeleteBranchOnMerge, skipped),
 			r.BranchCount,
 			r.StaleBranchCount,
 			r.TagCount,

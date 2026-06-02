@@ -92,6 +92,40 @@ func TestFormatTable(t *testing.T) {
 	}
 }
 
+func TestFormatTable_ShowsSkippedChecks(t *testing.T) {
+	repo := &api.Repository{
+		FullName:                   "owner/skipped",
+		Name:                       "skipped",
+		HasReadme:                  false,
+		HasLicense:                 false,
+		HasIssuesEnabled:           false,
+		SecretScanningEnabled:      false,
+		SecretScanningUnknown:      false,
+		PushProtectionEnabled:      false,
+		PushProtectionUnknown:      false,
+		VulnerabilityAlertsEnabled: false,
+		VulnerabilityAlertsUnknown: false,
+	}
+	result := checks.Evaluate(repo, checks.Options{Since: 180 * 24 * time.Hour})
+	result.SkippedChecks = []checks.SkippedCheck{
+		{Name: checks.CheckMissingReadme, Reason: "Ignored by profile"},
+		{Name: checks.CheckHasIssues, Reason: "Ignored by profile"},
+		{Name: checks.CheckNoSecretScanning, Reason: "Ignored by profile"},
+	}
+
+	var buf bytes.Buffer
+	if err := formatter.Format([]*checks.Result{result}, "table", &buf); err != nil {
+		t.Fatalf("Format table error: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "[SKIP]") {
+		t.Fatalf("expected [SKIP] marker in table output, got:\n%s", out)
+	}
+	if got := strings.Count(out, "[SKIP]"); got < 3 {
+		t.Fatalf("expected at least 3 [SKIP] markers for skipped checks, got %d:\n%s", got, out)
+	}
+}
+
 func TestFormatJSON(t *testing.T) {
 	var buf bytes.Buffer
 	if err := formatter.Format(sampleResults(), "json", &buf); err != nil {
