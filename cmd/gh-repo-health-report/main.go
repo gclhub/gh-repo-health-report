@@ -128,6 +128,7 @@ func rootCmd() *cobra.Command {
 			// Populate file checks and evaluate
 			sinceTime := time.Now().Add(-sinceThreshold)
 			var results []*checks.Result
+			var failOnResults []*checks.Result
 			for _, repo := range repoList {
 				if err := client.PopulateFileChecks(repo); err != nil {
 					return fmt.Errorf("failed to check files for %s: %w", repo.FullName, err)
@@ -153,6 +154,11 @@ func rootCmd() *cobra.Command {
 					Profile:     repoProfile,
 				}
 				results = append(results, checks.Evaluate(repo, opts))
+				if failOn != "" {
+					failOnOpts := opts
+					failOnOpts.Profile = nil
+					failOnResults = append(failOnResults, checks.Evaluate(repo, failOnOpts))
+				}
 			}
 
 			// Open output writer
@@ -173,8 +179,12 @@ func rootCmd() *cobra.Command {
 			// --fail-on logic
 			if failOn != "" {
 				failChecks := splitCheckNames(failOn)
-				for _, r := range results {
-					if shouldFail(r, failChecks, maxBranches, maxTags) {
+				for i, r := range results {
+					failOnFailedChecks := r.FailedChecks
+					if i < len(failOnResults) {
+						failOnFailedChecks = failOnResults[i].FailedChecks
+					}
+					if shouldFail(r.FailedChecks, failOnFailedChecks, failChecks) {
 						os.Exit(1)
 					}
 				}
@@ -243,86 +253,20 @@ func splitCheckNames(s string) []string {
 	return checks
 }
 
-// shouldFail returns true if any wanted check fails.
-func shouldFail(r *checks.Result, wanted []string, maxBranches, maxTags int) bool {
+// shouldFail returns true if any wanted checks should fail.
+func shouldFail(failed, failOnFailed, wanted []string) bool {
 	for _, w := range wanted {
 		if w == "any" {
-			if len(r.FailedChecks) > 0 {
+			if len(failed) > 0 {
 				return true
 			}
 			continue
 		}
-		if checkFailed(r, w, maxBranches, maxTags) {
-			return true
-		}
-	}
-	return false
-}
-
-func checkFailed(r *checks.Result, checkName string, maxBranches, maxTags int) bool {
-	switch checkName {
-	case checks.CheckStale:
-		return r.Stale
-	case checks.CheckHasDescription:
-		return !r.HasDescription
-	case checks.CheckHasHomepage:
-		return !r.HasHomepage
-	case checks.CheckMissingReadme:
-		return !r.HasReadme
-	case checks.CheckMissingLicense:
-		return !r.HasLicense
-	case checks.CheckMissingCodeOfConduct:
-		return !r.HasCodeOfConduct
-	case checks.CheckMissingCodeowners:
-		return !r.HasCodeowners
-	case checks.CheckMissingSecurityMd:
-		return !r.HasSecurity
-	case checks.CheckMissingContributing:
-		return !r.HasContributing
-	case checks.CheckMissingIssueTemplates:
-		return !r.HasIssueTemplates
-	case checks.CheckMissingPRTemplate:
-		return !r.HasPRTemplate
-	case checks.CheckHasIssues:
-		return !r.HasIssues
-	case checks.CheckHasProjects:
-		return !r.HasProjects
-	case checks.CheckHasWiki:
-		return !r.HasWiki
-	case checks.CheckMissingDependabot:
-		return !r.HasDependabot
-	case checks.CheckMissingCI:
-		return !r.HasCIWorkflows
-	case checks.CheckNoBranchProtection:
-		return !r.DefaultBranchProtected
-	case checks.CheckNoRulesets:
-		return !r.HasRulesets
-	case checks.CheckNoVulnerabilityAlerts:
-		return !r.VulnerabilityAlertsUnknown && !r.VulnerabilityAlertsEnabled
-	case checks.CheckNoSecretScanning:
-		return !r.SecretScanningUnknown && !r.SecretScanningEnabled
-	case checks.CheckNoPushProtection:
-		return !r.PushProtectionUnknown && !r.PushProtectionEnabled
-	case checks.CheckNoDeleteBranchOnMerge:
-		return !r.DeleteBranchOnMerge
-	case checks.CheckTooManyBranches:
-		if maxBranches == 0 {
-			maxBranches = checks.DefaultMaxBranches
-		}
-		return r.BranchCount > maxBranches
-	case checks.CheckHasStaleBranches:
-		return r.StaleBranchCount > 0
-	case checks.CheckTooManyTags:
-		if maxTags == 0 {
-			maxTags = checks.DefaultMaxTags
-		}
-		return r.TagCount > maxTags
-	default:
-		for _, failed := range r.FailedChecks {
-			if failed == checkName {
+		for _, f := range failOnFailed {
+			if f == w {
 				return true
 			}
 		}
-		return false
 	}
+	return false
 }

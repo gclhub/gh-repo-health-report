@@ -1,33 +1,28 @@
 package main
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/gclhub/gh-repo-health-report/internal/checks"
-)
+func TestShouldFailSpecificCheckUsesUnprofiledFailures(t *testing.T) {
+	filteredFailed := []string{"missing-readme"}
+	unprofiledFailed := []string{"missing-readme", "missing-codeowners"}
 
-func TestShouldFailSpecificCheckOverridesSkippedProfile(t *testing.T) {
-	result := &checks.Result{
-		HasCodeowners: false,
-		SkippedChecks: []checks.SkippedCheck{
-			{Name: checks.CheckMissingCodeowners, Reason: "Ignored by profile: open-source"},
-		},
-	}
-
-	if !shouldFail(result, []string{checks.CheckMissingCodeowners}, 0, 0) {
-		t.Fatalf("expected specific fail-on check to fail even when skipped by profile")
+	if !shouldFail(filteredFailed, unprofiledFailed, []string{"missing-codeowners"}) {
+		t.Fatal("expected specific fail-on check to use unprofiled failures")
 	}
 }
 
-func TestShouldFailAnyRespectsProfileFailures(t *testing.T) {
-	result := &checks.Result{
-		HasCodeowners: false,
-		SkippedChecks: []checks.SkippedCheck{
-			{Name: checks.CheckMissingCodeowners, Reason: "Ignored by profile: open-source"},
-		},
-	}
+func TestShouldFailAnyUsesProfileFilteredFailures(t *testing.T) {
+	filteredFailed := []string{}
+	unprofiledFailed := []string{"missing-codeowners"}
 
-	if shouldFail(result, []string{"any"}, 0, 0) {
-		t.Fatalf("expected fail-on any to ignore profile-skipped failures")
+	if shouldFail(filteredFailed, unprofiledFailed, []string{"any"}) {
+		t.Fatal("expected fail-on any to use profile-filtered failures")
+	}
+}
+
+func TestSplitCheckNamesTrimsWhitespace(t *testing.T) {
+	checks := splitCheckNames(" missing-readme, , missing-codeowners ")
+	if len(checks) != 2 || checks[0] != "missing-readme" || checks[1] != "missing-codeowners" {
+		t.Fatalf("unexpected split checks: %#v", checks)
 	}
 }
