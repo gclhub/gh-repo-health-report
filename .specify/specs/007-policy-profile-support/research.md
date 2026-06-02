@@ -1,7 +1,7 @@
 # Research: Policy Profile Support
 
-**Feature**: 007-policy-profile-support  
-**Date**: 2026-06-01  
+**Feature**: 007-policy-profile-support
+**Date**: 2026-06-01
 **Phase**: 0 - Research & Discovery
 
 ## Research Tasks
@@ -234,7 +234,7 @@ var (
             // ... (all 28 checks defined)
         },
     }
-    
+
     ProfileInternalService = Profile{ /* ... */ }
     ProfileApplication = Profile{ /* ... */ }
     ProfileArchived = Profile{ /* ... */ }

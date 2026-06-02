@@ -1,6 +1,6 @@
 # Quickstart: Policy Profile Support
 
-**Feature**: 007-policy-profile-support  
+**Feature**: 007-policy-profile-support
 **Audience**: Developers implementing this feature
 
 ## Overview
@@ -235,22 +235,22 @@ if profile != nil {
 
 ## Common Pitfalls
 
-❌ **Don't**: Modify existing check evaluation logic  
+❌ **Don't**: Modify existing check evaluation logic
 ✅ **Do**: Add profile filtering before/after existing evaluation
 
-❌ **Don't**: Change behavior when profile is nil  
+❌ **Don't**: Change behavior when profile is nil
 ✅ **Do**: Preserve exact legacy behavior for backward compatibility
 
-❌ **Don't**: Make profiles required  
+❌ **Don't**: Make profiles required
 ✅ **Do**: Make profiles optional with sensible defaults
 
-❌ **Don't**: Hard-code check names in multiple places  
+❌ **Don't**: Hard-code check names in multiple places
 ✅ **Do**: Use existing check constants from `checks.go`
 
-❌ **Don't**: Skip validation of profile definitions  
+❌ **Don't**: Skip validation of profile definitions
 ✅ **Do**: Add unit tests that verify all 28 checks are defined in each profile
 
-❌ **Don't**: Ignore config file parsing errors  
+❌ **Don't**: Ignore config file parsing errors
 ✅ **Do**: Fail fast with clear error messages for invalid configs
 
 ---

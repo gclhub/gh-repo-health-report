@@ -1,14 +1,14 @@
 # CLI Contract: Profile Support Flags
 
-**Feature**: 007-policy-profile-support  
+**Feature**: 007-policy-profile-support
 **Contract Type**: Command-line interface flags and behavior
 
 ## New CLI Flags
 
 ### --profile
 
-**Type**: `string`  
-**Default**: "" (empty, no profile)  
+**Type**: `string`
+**Default**: "" (empty, no profile)
 **Valid Values**: `open-source`, `internal-service`, `application`, `archived`, `prototype`, `auto`
 
 **Description**: Specifies which policy profile to apply when evaluating health checks. Each profile defines which checks are required, recommended, or ignored based on repository type.
@@ -41,8 +41,8 @@ gh repo-health-report --repo owner/repo
 
 ### --profile-config
 
-**Type**: `string`  
-**Default**: "" (auto-discover config file)  
+**Type**: `string`
+**Default**: "" (auto-discover config file)
 **Valid Values**: Path to YAML or JSON config file
 
 **Description**: Explicitly specifies the config file path to load default profile settings from. If not provided, the tool searches for config files in standard locations (current directory, home directory).
@@ -214,7 +214,7 @@ owner/library,open-source,NO,YES,YES,YES,NO,"missing-readme","missing-codeowners
 |---------------|-------|-------------|--------|---------|------------|
 | owner/library | NO    | ✓           | ✓      | ✓       | [SKIP]     |
 
-**Profile**: open-source  
+**Profile**: open-source
 **Skipped Checks**: missing-codeowners, has-projects, has-wiki (ignored by profile)
 ```
 

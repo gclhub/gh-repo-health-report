@@ -2,6 +2,7 @@ package formatter_test
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -221,6 +222,36 @@ func TestFormatCSV(t *testing.T) {
 	}
 }
 
+func TestFormatCSV_ShowsSkippedChecks(t *testing.T) {
+	result := sampleResults()[0]
+	result.SkippedChecks = []checks.SkippedCheck{
+		{Name: checks.CheckMissingReadme, Reason: "Ignored by profile"},
+		{Name: checks.CheckNoSecretScanning, Reason: "Ignored by profile"},
+	}
+
+	var buf bytes.Buffer
+	if err := formatter.Format([]*checks.Result{result}, "csv", &buf); err != nil {
+		t.Fatalf("Format csv error: %v", err)
+	}
+	rows, err := csv.NewReader(strings.NewReader(buf.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("invalid CSV: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected header + one row, got %d rows", len(rows))
+	}
+
+	columns := map[string]int{}
+	for i, name := range rows[0] {
+		columns[name] = i
+	}
+	for _, name := range []string{"README", "SECRET_SCAN"} {
+		if rows[1][columns[name]] != "SKIPPED" {
+			t.Errorf("expected %s column to be SKIPPED, got %q", name, rows[1][columns[name]])
+		}
+	}
+}
+
 func TestFormatMD(t *testing.T) {
 	var buf bytes.Buffer
 	if err := formatter.Format(sampleResults(), "md", &buf); err != nil {
@@ -241,5 +272,22 @@ func TestFormatMD(t *testing.T) {
 	}
 	if !strings.Contains(out, "owner/repo") {
 		t.Error("md output should contain repo name")
+	}
+}
+
+func TestFormatMD_ShowsSkippedChecks(t *testing.T) {
+	result := sampleResults()[0]
+	result.SkippedChecks = []checks.SkippedCheck{
+		{Name: checks.CheckMissingReadme, Reason: "Ignored by profile"},
+		{Name: checks.CheckNoSecretScanning, Reason: "Ignored by profile"},
+	}
+
+	var buf bytes.Buffer
+	if err := formatter.Format([]*checks.Result{result}, "md", &buf); err != nil {
+		t.Fatalf("Format md error: %v", err)
+	}
+	out := buf.String()
+	if got := strings.Count(out, "[SKIP]"); got < 2 {
+		t.Fatalf("expected skipped check markers in md output, got %d:\n%s", got, out)
 	}
 }

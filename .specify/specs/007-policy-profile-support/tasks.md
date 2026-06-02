@@ -1,7 +1,7 @@
 # Tasks: Policy Profile Support
 
-**Feature**: 007-policy-profile-support  
-**Input**: Design documents from `.specify/specs/007-policy-profile-support/`  
+**Feature**: 007-policy-profile-support
+**Input**: Design documents from `.specify/specs/007-policy-profile-support/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/cli-contract.md, quickstart.md
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
@@ -334,8 +334,8 @@ With multiple developers:
 
 ## Summary
 
-**Total Tasks**: 116  
-**MVP Tasks (Setup + Foundational + US1)**: 30  
+**Total Tasks**: 116
+**MVP Tasks (Setup + Foundational + US1)**: 30
 **Critical Path**: Setup → Foundational → US1 → US3 (output transparency depends on profile evaluation)
 
 **User Story Breakdown**:

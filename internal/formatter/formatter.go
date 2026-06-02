@@ -70,6 +70,32 @@ func staleDisplay(stale bool, skipped map[string]struct{}) string {
 	return staleStr(stale)
 }
 
+func isSkipped(checkName string, skipped map[string]struct{}) bool {
+	_, ok := skipped[checkName]
+	return ok
+}
+
+func csvCheckDisplay(checkName string, passed bool, skipped map[string]struct{}) string {
+	if isSkipped(checkName, skipped) {
+		return "SKIPPED"
+	}
+	return strconv.FormatBool(passed)
+}
+
+func csvTriStateCheckDisplay(checkName string, ok, unknown bool, skipped map[string]struct{}) string {
+	if isSkipped(checkName, skipped) {
+		return "SKIPPED"
+	}
+	return tristate(ok, unknown)
+}
+
+func csvStaleDisplay(stale bool, skipped map[string]struct{}) string {
+	if isSkipped(checks.CheckStale, skipped) {
+		return "SKIPPED"
+	}
+	return staleStr(stale)
+}
+
 // Format writes results in the requested format to w.
 func Format(results []*checks.Result, format string, w io.Writer) error {
 	switch format {
@@ -248,30 +274,31 @@ func formatCSV(results []*checks.Result, w io.Writer) error {
 		return err
 	}
 	for _, r := range results {
+		skipped := skippedChecksSet(r)
 		row := []string{
 			r.Repository.FullName,
-			staleStr(r.Stale),
-			strconv.FormatBool(r.HasDescription),
+			csvStaleDisplay(r.Stale, skipped),
+			csvCheckDisplay(checks.CheckHasDescription, r.HasDescription, skipped),
 			strconv.Itoa(r.TopicsCount),
-			strconv.FormatBool(r.HasReadme),
-			strconv.FormatBool(r.HasLicense),
-			strconv.FormatBool(r.HasCodeOfConduct),
-			strconv.FormatBool(r.HasCodeowners),
-			strconv.FormatBool(r.HasSecurity),
-			strconv.FormatBool(r.HasContributing),
-			strconv.FormatBool(r.HasIssueTemplates),
-			strconv.FormatBool(r.HasPRTemplate),
-			strconv.FormatBool(r.HasIssues),
-			strconv.FormatBool(r.HasWiki),
-			strconv.FormatBool(r.HasProjects),
-			strconv.FormatBool(r.HasDependabot),
-			strconv.FormatBool(r.HasCIWorkflows),
-			strconv.FormatBool(r.DefaultBranchProtected),
-			strconv.FormatBool(r.HasRulesets),
-			tristate(r.VulnerabilityAlertsEnabled, r.VulnerabilityAlertsUnknown),
-			tristate(r.SecretScanningEnabled, r.SecretScanningUnknown),
-			tristate(r.PushProtectionEnabled, r.PushProtectionUnknown),
-			strconv.FormatBool(r.DeleteBranchOnMerge),
+			csvCheckDisplay(checks.CheckMissingReadme, r.HasReadme, skipped),
+			csvCheckDisplay(checks.CheckMissingLicense, r.HasLicense, skipped),
+			csvCheckDisplay(checks.CheckMissingCodeOfConduct, r.HasCodeOfConduct, skipped),
+			csvCheckDisplay(checks.CheckMissingCodeowners, r.HasCodeowners, skipped),
+			csvCheckDisplay(checks.CheckMissingSecurityMd, r.HasSecurity, skipped),
+			csvCheckDisplay(checks.CheckMissingContributing, r.HasContributing, skipped),
+			csvCheckDisplay(checks.CheckMissingIssueTemplates, r.HasIssueTemplates, skipped),
+			csvCheckDisplay(checks.CheckMissingPRTemplate, r.HasPRTemplate, skipped),
+			csvCheckDisplay(checks.CheckHasIssues, r.HasIssues, skipped),
+			csvCheckDisplay(checks.CheckHasWiki, r.HasWiki, skipped),
+			csvCheckDisplay(checks.CheckHasProjects, r.HasProjects, skipped),
+			csvCheckDisplay(checks.CheckMissingDependabot, r.HasDependabot, skipped),
+			csvCheckDisplay(checks.CheckMissingCI, r.HasCIWorkflows, skipped),
+			csvCheckDisplay(checks.CheckNoBranchProtection, r.DefaultBranchProtected, skipped),
+			csvCheckDisplay(checks.CheckNoRulesets, r.HasRulesets, skipped),
+			csvTriStateCheckDisplay(checks.CheckNoVulnerabilityAlerts, r.VulnerabilityAlertsEnabled, r.VulnerabilityAlertsUnknown, skipped),
+			csvTriStateCheckDisplay(checks.CheckNoSecretScanning, r.SecretScanningEnabled, r.SecretScanningUnknown, skipped),
+			csvTriStateCheckDisplay(checks.CheckNoPushProtection, r.PushProtectionEnabled, r.PushProtectionUnknown, skipped),
+			csvCheckDisplay(checks.CheckNoDeleteBranchOnMerge, r.DeleteBranchOnMerge, skipped),
 			strconv.Itoa(r.BranchCount),
 			strconv.Itoa(r.StaleBranchCount),
 			strconv.Itoa(r.TagCount),
@@ -290,30 +317,31 @@ func formatMD(results []*checks.Result, w io.Writer) error {
 	fmt.Fprintln(w, "| REPO | STALE | DESCRIPTION | TOPICS | README | LICENSE | CODE_CONDUCT | CODEOWNERS | SECURITY | CONTRIBUTING | ISSUE_TMPL | PR_TMPL | ISSUES | WIKI | PROJECTS | DEPENDABOT | CI | BR_PROTECT | RULESETS | VULN_ALERTS | SECRET_SCAN | PUSH_PROT | AUTO_DEL_BR | BRANCHES | STALE_BR | TAGS | OPEN_ISSUES | SIZE_KB |")
 	fmt.Fprintln(w, "|------|-------|-------------|--------|--------|---------|--------------|------------|----------|--------------|------------|---------|--------|------|----------|------------|----|-----------:|----------:|------------:|------------:|----------:|------------:|---------:|---------:|-----:|------------:|--------:|")
 	for _, r := range results {
+		skipped := skippedChecksSet(r)
 		fmt.Fprintf(w, "| %s | %s | %s | %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %d | %d | %d | %d | %d |\n",
 			r.Repository.FullName,
-			staleStr(r.Stale),
-			bool2check(r.HasDescription),
+			staleDisplay(r.Stale, skipped),
+			checkDisplay(checks.CheckHasDescription, r.HasDescription, skipped),
 			r.TopicsCount,
-			bool2check(r.HasReadme),
-			bool2check(r.HasLicense),
-			bool2check(r.HasCodeOfConduct),
-			bool2check(r.HasCodeowners),
-			bool2check(r.HasSecurity),
-			bool2check(r.HasContributing),
-			bool2check(r.HasIssueTemplates),
-			bool2check(r.HasPRTemplate),
-			bool2check(r.HasIssues),
-			bool2check(r.HasWiki),
-			bool2check(r.HasProjects),
-			bool2check(r.HasDependabot),
-			bool2check(r.HasCIWorkflows),
-			bool2check(r.DefaultBranchProtected),
-			bool2check(r.HasRulesets),
-			tristate(r.VulnerabilityAlertsEnabled, r.VulnerabilityAlertsUnknown),
-			tristate(r.SecretScanningEnabled, r.SecretScanningUnknown),
-			tristate(r.PushProtectionEnabled, r.PushProtectionUnknown),
-			bool2check(r.DeleteBranchOnMerge),
+			checkDisplay(checks.CheckMissingReadme, r.HasReadme, skipped),
+			checkDisplay(checks.CheckMissingLicense, r.HasLicense, skipped),
+			checkDisplay(checks.CheckMissingCodeOfConduct, r.HasCodeOfConduct, skipped),
+			checkDisplay(checks.CheckMissingCodeowners, r.HasCodeowners, skipped),
+			checkDisplay(checks.CheckMissingSecurityMd, r.HasSecurity, skipped),
+			checkDisplay(checks.CheckMissingContributing, r.HasContributing, skipped),
+			checkDisplay(checks.CheckMissingIssueTemplates, r.HasIssueTemplates, skipped),
+			checkDisplay(checks.CheckMissingPRTemplate, r.HasPRTemplate, skipped),
+			checkDisplay(checks.CheckHasIssues, r.HasIssues, skipped),
+			checkDisplay(checks.CheckHasWiki, r.HasWiki, skipped),
+			checkDisplay(checks.CheckHasProjects, r.HasProjects, skipped),
+			checkDisplay(checks.CheckMissingDependabot, r.HasDependabot, skipped),
+			checkDisplay(checks.CheckMissingCI, r.HasCIWorkflows, skipped),
+			checkDisplay(checks.CheckNoBranchProtection, r.DefaultBranchProtected, skipped),
+			checkDisplay(checks.CheckNoRulesets, r.HasRulesets, skipped),
+			tristateCheckDisplay(checks.CheckNoVulnerabilityAlerts, r.VulnerabilityAlertsEnabled, r.VulnerabilityAlertsUnknown, skipped),
+			tristateCheckDisplay(checks.CheckNoSecretScanning, r.SecretScanningEnabled, r.SecretScanningUnknown, skipped),
+			tristateCheckDisplay(checks.CheckNoPushProtection, r.PushProtectionEnabled, r.PushProtectionUnknown, skipped),
+			checkDisplay(checks.CheckNoDeleteBranchOnMerge, r.DeleteBranchOnMerge, skipped),
 			r.BranchCount,
 			r.StaleBranchCount,
 			r.TagCount,

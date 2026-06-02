@@ -11,15 +11,15 @@ Add policy profile support to gh-repo-health-report, enabling users to apply dif
 
 ## Technical Context
 
-**Language/Version**: Go 1.21+  
-**Primary Dependencies**: github.com/cli/go-gh/v2 (GitHub CLI), github.com/spf13/cobra (CLI framework)  
-**Storage**: N/A (stateless CLI tool), config file at `.gh-repo-health-report.yml` or `~/.gh-repo-health-report.yml`  
-**Testing**: Go standard `testing` package — run with `go test ./...`  
-**Target Platform**: Cross-platform CLI (Linux, macOS, Windows)  
-**Project Type**: GitHub CLI extension  
-**Performance Goals**: Profile evaluation adds negligible overhead (<1ms per repo), maintains sub-second response for small repos  
-**Constraints**: GitHub API rate limits (5000 req/hr authenticated), must respect `gh` CLI auth; profile logic is client-side filtering with no additional API calls  
-**Scale/Scope**: Designed for auditing 1-1000+ repositories per execution with profile-aware filtering  
+**Language/Version**: Go 1.21+
+**Primary Dependencies**: github.com/cli/go-gh/v2 (GitHub CLI), github.com/spf13/cobra (CLI framework)
+**Storage**: N/A (stateless CLI tool), config file at `.gh-repo-health-report.yml` or `~/.gh-repo-health-report.yml`
+**Testing**: Go standard `testing` package — run with `go test ./...`
+**Target Platform**: Cross-platform CLI (Linux, macOS, Windows)
+**Project Type**: GitHub CLI extension
+**Performance Goals**: Profile evaluation adds negligible overhead (<1ms per repo), maintains sub-second response for small repos
+**Constraints**: GitHub API rate limits (5000 req/hr authenticated), must respect `gh` CLI auth; profile logic is client-side filtering with no additional API calls
+**Scale/Scope**: Designed for auditing 1-1000+ repositories per execution with profile-aware filtering
 **Config File Format**: YAML (primary) or JSON for profile configuration, optional, supports default_profile setting
 
 ## Constitution Check
@@ -123,7 +123,7 @@ No constitution violations. This feature cleanly extends the existing architectu
 
 ### Phase 0: Research & Discovery ✅
 
-**Status**: Complete  
+**Status**: Complete
 **Artifact**: `research.md`
 
 **Key Decisions**:
@@ -140,7 +140,7 @@ No constitution violations. This feature cleanly extends the existing architectu
 
 ### Phase 1: Design & Contracts ✅
 
-**Status**: Complete  
+**Status**: Complete
 **Artifacts**: `data-model.md`, `contracts/cli-contract.md`, `quickstart.md`
 
 **Data Model Highlights**:
@@ -171,7 +171,7 @@ No constitution violations. This feature cleanly extends the existing architectu
 
 ### Phase 2: Task Planning (Next Step)
 
-**Command**: `/speckit.tasks`  
+**Command**: `/speckit.tasks`
 **Expected Artifacts**: `tasks.md` with atomic implementation tasks
 
 **This plan ends here.** The `/speckit.plan` command stops after Phase 1 (design). Use `/speckit.tasks` to generate implementation tasks based on this plan.
@@ -186,7 +186,7 @@ No constitution violations. This feature cleanly extends the existing architectu
 
 **Why**: Eliminate false positives by tailoring governance expectations to repository context. A prototype shouldn't be penalized for lacking CODEOWNERS; an archived repo shouldn't fail for staleness.
 
-**How**: 
+**How**:
 1. **Profile System** (`internal/checks/profile.go`): Define `Profile` struct with `map[string]EnforcementLevel`, create five predefined profiles, implement auto-detection heuristics
 2. **Config Support** (`internal/checks/config.go`): Load default profile from YAML/JSON config files (`.gh-repo-health-report.yml`)
 3. **Evaluation** (`internal/checks/checks.go`): Update `Evaluate()` to filter checks by profile, add `SkippedChecks` to `Result`
@@ -236,12 +236,12 @@ No constitution violations. This feature cleanly extends the existing architectu
 
 ## Branch and Artifacts
 
-**Branch**: `007-policy-profile-support`  
-**Spec**: `.specify/specs/007-policy-profile-support/spec.md`  
-**Plan**: `.specify/specs/007-policy-profile-support/plan.md` (this file)  
-**Research**: `.specify/specs/007-policy-profile-support/research.md`  
-**Data Model**: `.specify/specs/007-policy-profile-support/data-model.md`  
-**Contracts**: `.specify/specs/007-policy-profile-support/contracts/cli-contract.md`  
+**Branch**: `007-policy-profile-support`
+**Spec**: `.specify/specs/007-policy-profile-support/spec.md`
+**Plan**: `.specify/specs/007-policy-profile-support/plan.md` (this file)
+**Research**: `.specify/specs/007-policy-profile-support/research.md`
+**Data Model**: `.specify/specs/007-policy-profile-support/data-model.md`
+**Contracts**: `.specify/specs/007-policy-profile-support/contracts/cli-contract.md`
 **Quickstart**: `.specify/specs/007-policy-profile-support/quickstart.md`
 
 **Next Command**: `/speckit.tasks` to generate atomic implementation tasks

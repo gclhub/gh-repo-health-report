@@ -205,20 +205,10 @@ func Evaluate(repo *api.Repository, opts Options) *Result {
 	addFailedCheck(CheckNoSecretScanning, !r.SecretScanningUnknown && !r.SecretScanningEnabled)
 	addFailedCheck(CheckNoPushProtection, !r.PushProtectionUnknown && !r.PushProtectionEnabled)
 	addFailedCheck(CheckNoDeleteBranchOnMerge, !r.DeleteBranchOnMerge)
-	// Branch count threshold (0 = use default).
-	maxBranches := opts.MaxBranches
-	if maxBranches == 0 {
-		maxBranches = DefaultMaxBranches
-	}
-	addFailedCheck(CheckTooManyBranches, r.BranchCount > maxBranches)
+	addFailedCheck(CheckTooManyBranches, opts.MaxBranches > 0 && r.BranchCount > opts.MaxBranches)
 	addFailedCheck(CheckHasStaleBranches, r.StaleBranchCount > 0)
 
-	// Tag count threshold (0 = use default).
-	maxTags := opts.MaxTags
-	if maxTags == 0 {
-		maxTags = DefaultMaxTags
-	}
-	addFailedCheck(CheckTooManyTags, r.TagCount > maxTags)
+	addFailedCheck(CheckTooManyTags, opts.MaxTags > 0 && r.TagCount > opts.MaxTags)
 
 	return r
 }

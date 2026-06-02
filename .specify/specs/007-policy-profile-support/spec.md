@@ -1,8 +1,8 @@
 # Feature Specification: Policy Profile Support
 
-**Feature Branch**: `007-policy-profile-support`  
-**Created**: 2026-06-01  
-**Status**: Draft  
+**Feature Branch**: `007-policy-profile-support`
+**Created**: 2026-06-01
+**Status**: Draft
 **Input**: User description: "Create a specification for adding policy profile support to gh-repo-health-report."
 
 ## User Scenarios & Testing *(mandatory)*
@@ -137,7 +137,7 @@ As a platform user with diverse repositories, I want the tool to automatically d
 ### Key Entities
 
 - **Profile**: A named configuration defining governance expectations for a repository type. Contains a name (string), description (string), and a mapping of check names to enforcement levels ("required", "recommended", "ignored").
-  
+
 - **Check Enforcement Level**: An enumeration (`required`, `recommended`, `ignored`) that determines whether a check is evaluated and how it impacts scoring:
   - `required`: Check must pass; failure contributes to fail count and affects exit codes.
   - `recommended`: Check is evaluated and reported but doesn't cause strict failures (informational).
@@ -212,7 +212,7 @@ Each profile defines enforcement levels for all 28 checks. "Required" checks mus
 When `--profile auto` is specified, the system applies these rules in order:
 
 1. **Archived status**: If repository is marked archived on GitHub → use `archived` profile
-2. **Topic matching**: 
+2. **Topic matching**:
    - Topics `prototype`, `experimental`, `poc`, `spike` → use `prototype` profile
    - Topics `library`, `package`, `npm-package`, `gem`, `pypi` → use `open-source` profile
    - Topics `service`, `api`, `microservice` → use `internal-service` profile

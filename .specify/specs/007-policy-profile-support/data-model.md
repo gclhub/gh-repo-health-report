@@ -1,7 +1,7 @@
 # Data Model: Policy Profile Support
 
-**Feature**: 007-policy-profile-support  
-**Date**: 2026-06-01  
+**Feature**: 007-policy-profile-support
+**Date**: 2026-06-01
 **Phase**: 1 - Design
 
 ## Core Entities
@@ -189,7 +189,7 @@ opts := checks.Options{
 
 ### Profile: open-source
 
-**Name**: `open-source`  
+**Name**: `open-source`
 **Description**: "Public libraries focused on community collaboration and transparency"
 
 **Check Enforcement**:
@@ -201,7 +201,7 @@ opts := checks.Options{
 
 ### Profile: internal-service
 
-**Name**: `internal-service`  
+**Name**: `internal-service`
 **Description**: "Production services and APIs maintained by internal teams"
 
 **Check Enforcement**:
@@ -213,7 +213,7 @@ opts := checks.Options{
 
 ### Profile: application
 
-**Name**: `application`  
+**Name**: `application`
 **Description**: "End-user applications (web apps, mobile apps, desktop software)"
 
 **Check Enforcement**:
@@ -225,7 +225,7 @@ opts := checks.Options{
 
 ### Profile: archived
 
-**Name**: `archived`  
+**Name**: `archived`
 **Description**: "Repositories no longer under active development but retained for reference"
 
 **Check Enforcement**:
@@ -237,7 +237,7 @@ opts := checks.Options{
 
 ### Profile: prototype
 
-**Name**: `prototype`  
+**Name**: `prototype`
 **Description**: "Experimental or proof-of-concept repositories for exploration and learning"
 
 **Check Enforcement**:
@@ -252,7 +252,7 @@ opts := checks.Options{
 When `--profile auto` is specified, apply these rules in priority order:
 
 ### Priority 1: Archived Status
-**Condition**: `repo.IsArchived == true`  
+**Condition**: `repo.IsArchived == true`
 **Result**: Use `archived` profile
 
 ### Priority 2: Topic Matching
@@ -265,11 +265,11 @@ When `--profile auto` is specified, apply these rules in priority order:
 **Conflict Resolution**: First matching topic wins (order above)
 
 ### Priority 3: Visibility
-**Condition**: `repo.IsPrivate == false`  
+**Condition**: `repo.IsPrivate == false`
 **Result**: Use `open-source` profile
 
 ### Priority 4: Fallback
-**Condition**: No above conditions matched  
+**Condition**: No above conditions matched
 **Result**: Use `internal-service` profile (or config default if set)
 
 ---
@@ -280,29 +280,29 @@ When `--profile auto` is specified, apply these rules in priority order:
 function Evaluate(repo, opts):
     result = new Result(repo)
     profile = opts.Profile
-    
+
     // Backward compatibility: no profile = all checks required
     if profile == nil:
         return evaluateLegacy(repo, opts)
-    
+
     // For each of the 28 checks:
     for each check in AllChecks:
         enforcement = profile.Checks[check]
-        
+
         if enforcement == EnforcementIgnored:
             result.SkippedChecks.append({
                 Name: check,
                 Reason: "Ignored by profile: " + profile.Name
             })
             continue
-        
+
         // Evaluate check (existing logic)
         passed = evaluateCheck(check, repo, opts)
-        
+
         if !passed:
             if enforcement == EnforcementRequired || enforcement == EnforcementRecommended:
                 result.FailedChecks.append(check)
-    
+
     return result
 ```
 
@@ -319,19 +319,19 @@ function Evaluate(repo, opts):
 ```
 function CalculateScore(result):
     profile = result.Profile
-    
+
     if profile == nil:
         // Legacy scoring: all checks equal weight
         total = 28
         passed = total - len(result.FailedChecks)
         return (passed / total) * 100
-    
+
     // Profile-aware scoring: count only non-ignored checks
     total = 0
     for each check in AllChecks:
         if profile.Checks[check] != EnforcementIgnored:
             total++
-    
+
     passed = total - len(result.FailedChecks)
     return (passed / total) * 100
 ```

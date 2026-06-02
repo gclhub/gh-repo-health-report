@@ -321,15 +321,18 @@ func TestEvaluate_TagCountWithinLimit(t *testing.T) {
 	}
 }
 
-func TestEvaluate_DefaultBranchCountThresholds(t *testing.T) {
-	// With MaxBranches=0, default of 50 should apply.
+func TestEvaluate_ZeroBranchAndTagThresholdsDisableChecks(t *testing.T) {
 	repo := baseRepo()
 	repo.BranchCount = 51
-	opts := checks.Options{Since: 180 * 24 * time.Hour} // MaxBranches=0 → default 50
+	repo.TagCount = 101
+	opts := checks.Options{Since: 180 * 24 * time.Hour}
 	result := checks.Evaluate(repo, opts)
 
-	if !contains(result.FailedChecks, checks.CheckTooManyBranches) {
-		t.Errorf("expected %s in FailedChecks with default threshold, got %v", checks.CheckTooManyBranches, result.FailedChecks)
+	if contains(result.FailedChecks, checks.CheckTooManyBranches) {
+		t.Errorf("expected %s not in FailedChecks when threshold is disabled, got %v", checks.CheckTooManyBranches, result.FailedChecks)
+	}
+	if contains(result.FailedChecks, checks.CheckTooManyTags) {
+		t.Errorf("expected %s not in FailedChecks when threshold is disabled, got %v", checks.CheckTooManyTags, result.FailedChecks)
 	}
 }
 
