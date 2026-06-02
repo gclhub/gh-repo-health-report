@@ -31,6 +31,8 @@ func rootCmd() *cobra.Command {
 		failOn          string
 		maxBranches     int
 		maxTags         int
+		profile         string
+		profileConfig   string
 	)
 
 	cmd := &cobra.Command{
@@ -46,6 +48,49 @@ func rootCmd() *cobra.Command {
 			sinceThreshold, err := parseSince(since)
 			if err != nil {
 				return fmt.Errorf("invalid --since value %q: %w", since, err)
+			}
+
+			// Resolve profile: --profile flag > config file > nil
+			var selectedProfile *checks.Profile
+			var autoMode bool
+			var cfg *checks.Config
+
+			if profile != "" {
+				// Explicit --profile flag takes precedence
+				if profile == "auto" {
+					// Auto-detection will be done per-repository
+					autoMode = true
+				} else {
+					selectedProfile = checks.GetProfile(profile)
+					if selectedProfile == nil {
+						return fmt.Errorf("unknown profile %q; valid profiles: open-source, internal-service, application, archived, prototype, auto", profile)
+					}
+				}
+			} else {
+				// Try loading config file
+				if profileConfig != "" {
+					cfg, err = checks.LoadConfig(profileConfig)
+					if err != nil {
+						return fmt.Errorf("failed to load config file: %w", err)
+					}
+				} else {
+					cfg, err = checks.DiscoverConfig()
+					if err != nil {
+						return fmt.Errorf("failed to discover config file: %w", err)
+					}
+				}
+
+				if cfg != nil && cfg.DefaultProfile != "" {
+					if cfg.DefaultProfile == "auto" {
+						// Auto mode from config
+						autoMode = true
+					} else {
+						selectedProfile = checks.GetProfile(cfg.DefaultProfile)
+						if selectedProfile == nil {
+							return fmt.Errorf("unknown profile %q in config file; valid profiles: open-source, internal-service, application, archived, prototype, auto", cfg.DefaultProfile)
+						}
+					}
+				}
 			}
 
 			client, err := api.NewClient()
@@ -81,11 +126,6 @@ func rootCmd() *cobra.Command {
 			}
 
 			// Populate file checks and evaluate
-			opts := checks.Options{
-				Since:       sinceThreshold,
-				MaxBranches: maxBranches,
-				MaxTags:     maxTags,
-			}
 			sinceTime := time.Now().Add(-sinceThreshold)
 			var results []*checks.Result
 			for _, repo := range repoList {
@@ -97,6 +137,20 @@ func rootCmd() *cobra.Command {
 				}
 				if err := client.PopulateBranchTagChecks(repo, sinceTime); err != nil {
 					return fmt.Errorf("failed to run branch/tag checks for %s: %w", repo.FullName, err)
+				}
+
+				// Determine profile for this repository
+				repoProfile := selectedProfile
+				if autoMode {
+					// Auto-detect profile based on repository metadata
+					repoProfile = checks.DetectProfile(repo)
+				}
+
+				opts := checks.Options{
+					Since:       sinceThreshold,
+					MaxBranches: maxBranches,
+					MaxTags:     maxTags,
+					Profile:     repoProfile,
 				}
 				results = append(results, checks.Evaluate(repo, opts))
 			}
@@ -141,6 +195,8 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&failOn, "fail-on", "", "Comma-separated check names; exit 1 if any repo fails (use 'any' to fail on any failure)")
 	cmd.Flags().IntVar(&maxBranches, "max-branches", 50, "Branch count threshold for too-many-branches check (0 to disable)")
 	cmd.Flags().IntVar(&maxTags, "max-tags", 100, "Tag count threshold for too-many-tags check (0 to disable)")
+	cmd.Flags().StringVar(&profile, "profile", "", "Policy profile to apply (open-source, internal-service, application, archived, prototype, auto)")
+	cmd.Flags().StringVar(&profileConfig, "profile-config", "", "Path to config file with default profile (YAML or JSON)")
 
 	return cmd
 }

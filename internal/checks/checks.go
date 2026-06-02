@@ -49,8 +49,15 @@ const DefaultMaxTags = 100
 
 type Options struct {
 	Since       time.Duration
-	MaxBranches int // flag too-many-branches if BranchCount > MaxBranches; 0 = disabled
-	MaxTags     int // flag too-many-tags if TagCount > MaxTags; 0 = disabled
+	MaxBranches int      // flag too-many-branches if BranchCount > MaxBranches; 0 = disabled
+	MaxTags     int      // flag too-many-tags if TagCount > MaxTags; 0 = disabled
+	Profile     *Profile // profile to apply during evaluation; nil = legacy behavior
+}
+
+// SkippedCheck represents a check that was skipped due to profile enforcement.
+type SkippedCheck struct {
+	Name   string
+	Reason string
 }
 
 // Result holds the health check results for a single repository.
@@ -90,6 +97,7 @@ type Result struct {
 	StaleBranchCount int
 	TagCount         int
 	FailedChecks     []string
+	SkippedChecks    []SkippedCheck
 }
 
 // Evaluate runs all health checks against a repository.
@@ -136,95 +144,81 @@ func Evaluate(repo *api.Repository, opts Options) *Result {
 		r.Stale = true
 	}
 
+	// Helper function to add a failed check, respecting profile enforcement
+	addFailedCheck := func(checkName string, failed bool) {
+		// If no profile, add to failed checks (backward compatibility)
+		if opts.Profile == nil {
+			if failed {
+				r.FailedChecks = append(r.FailedChecks, checkName)
+			}
+			return
+		}
+
+		// Check profile enforcement level
+		enforcement, exists := opts.Profile.Checks[checkName]
+		if !exists {
+			// If check not in profile, treat as required (backward compatibility)
+			if failed {
+				r.FailedChecks = append(r.FailedChecks, checkName)
+			}
+			return
+		}
+
+		// Handle enforcement levels
+		switch enforcement {
+		case EnforcementIgnored:
+			// Skip this check entirely
+			r.SkippedChecks = append(r.SkippedChecks, SkippedCheck{
+				Name:   checkName,
+				Reason: "Ignored by profile: " + opts.Profile.Name,
+			})
+		case EnforcementRequired, EnforcementRecommended:
+			// Evaluate and add to failed if it fails
+			if failed {
+				r.FailedChecks = append(r.FailedChecks, checkName)
+			}
+		}
+	}
+
 	// Collect failed checks.
-	if r.Stale {
-		r.FailedChecks = append(r.FailedChecks, CheckStale)
-	}
-	if !r.HasDescription {
-		r.FailedChecks = append(r.FailedChecks, CheckHasDescription)
-	}
-	if !r.HasHomepage {
-		r.FailedChecks = append(r.FailedChecks, CheckHasHomepage)
-	}
-	if !r.HasReadme {
-		r.FailedChecks = append(r.FailedChecks, CheckMissingReadme)
-	}
-	if !r.HasLicense {
-		r.FailedChecks = append(r.FailedChecks, CheckMissingLicense)
-	}
-	if !r.HasCodeOfConduct {
-		r.FailedChecks = append(r.FailedChecks, CheckMissingCodeOfConduct)
-	}
-	if !r.HasCodeowners {
-		r.FailedChecks = append(r.FailedChecks, CheckMissingCodeowners)
-	}
-	if !r.HasSecurity {
-		r.FailedChecks = append(r.FailedChecks, CheckMissingSecurityMd)
-	}
-	if !r.HasContributing {
-		r.FailedChecks = append(r.FailedChecks, CheckMissingContributing)
-	}
-	if !r.HasIssueTemplates {
-		r.FailedChecks = append(r.FailedChecks, CheckMissingIssueTemplates)
-	}
-	if !r.HasPRTemplate {
-		r.FailedChecks = append(r.FailedChecks, CheckMissingPRTemplate)
-	}
-	if !r.HasIssues {
-		r.FailedChecks = append(r.FailedChecks, CheckHasIssues)
-	}
-	if !r.HasProjects {
-		r.FailedChecks = append(r.FailedChecks, CheckHasProjects)
-	}
-	if !r.HasWiki {
-		r.FailedChecks = append(r.FailedChecks, CheckHasWiki)
-	}
-	if !r.HasDependabot {
-		r.FailedChecks = append(r.FailedChecks, CheckMissingDependabot)
-	}
-	if !r.HasCIWorkflows {
-		r.FailedChecks = append(r.FailedChecks, CheckMissingCI)
-	}
-	if !r.DefaultBranchProtected {
-		r.FailedChecks = append(r.FailedChecks, CheckNoBranchProtection)
-	}
-	if !r.HasRulesets {
-		r.FailedChecks = append(r.FailedChecks, CheckNoRulesets)
-	}
-	// Only flag vulnerability alerts as failed when we can actually determine
-	// the status (i.e. not a 403 / unknown case).
-	if !r.VulnerabilityAlertsUnknown && !r.VulnerabilityAlertsEnabled {
-		r.FailedChecks = append(r.FailedChecks, CheckNoVulnerabilityAlerts)
-	}
-	// Only flag secret scanning / push protection when the status is known.
-	if !r.SecretScanningUnknown && !r.SecretScanningEnabled {
-		r.FailedChecks = append(r.FailedChecks, CheckNoSecretScanning)
-	}
-	if !r.PushProtectionUnknown && !r.PushProtectionEnabled {
-		r.FailedChecks = append(r.FailedChecks, CheckNoPushProtection)
-	}
-	if !r.DeleteBranchOnMerge {
-		r.FailedChecks = append(r.FailedChecks, CheckNoDeleteBranchOnMerge)
-	}
+	addFailedCheck(CheckStale, r.Stale)
+	addFailedCheck(CheckHasDescription, !r.HasDescription)
+	addFailedCheck(CheckHasHomepage, !r.HasHomepage)
+	addFailedCheck(CheckMissingReadme, !r.HasReadme)
+	addFailedCheck(CheckMissingLicense, !r.HasLicense)
+	addFailedCheck(CheckMissingCodeOfConduct, !r.HasCodeOfConduct)
+	addFailedCheck(CheckMissingCodeowners, !r.HasCodeowners)
+	addFailedCheck(CheckMissingSecurityMd, !r.HasSecurity)
+	addFailedCheck(CheckMissingContributing, !r.HasContributing)
+	addFailedCheck(CheckMissingIssueTemplates, !r.HasIssueTemplates)
+	addFailedCheck(CheckMissingPRTemplate, !r.HasPRTemplate)
+	addFailedCheck(CheckHasIssues, !r.HasIssues)
+	addFailedCheck(CheckHasProjects, !r.HasProjects)
+	addFailedCheck(CheckHasWiki, !r.HasWiki)
+	addFailedCheck(CheckMissingDependabot, !r.HasDependabot)
+	addFailedCheck(CheckMissingCI, !r.HasCIWorkflows)
+	addFailedCheck(CheckNoBranchProtection, !r.DefaultBranchProtected)
+	addFailedCheck(CheckNoRulesets, !r.HasRulesets)
+	// Only flag vulnerability alerts as failed when we can actually determine the status
+	addFailedCheck(CheckNoVulnerabilityAlerts, !r.VulnerabilityAlertsUnknown && !r.VulnerabilityAlertsEnabled)
+	// Only flag secret scanning / push protection when the status is known
+	addFailedCheck(CheckNoSecretScanning, !r.SecretScanningUnknown && !r.SecretScanningEnabled)
+	addFailedCheck(CheckNoPushProtection, !r.PushProtectionUnknown && !r.PushProtectionEnabled)
+	addFailedCheck(CheckNoDeleteBranchOnMerge, !r.DeleteBranchOnMerge)
 	// Branch count threshold (0 = use default).
 	maxBranches := opts.MaxBranches
 	if maxBranches == 0 {
 		maxBranches = DefaultMaxBranches
 	}
-	if r.BranchCount > maxBranches {
-		r.FailedChecks = append(r.FailedChecks, CheckTooManyBranches)
-	}
-	if r.StaleBranchCount > 0 {
-		r.FailedChecks = append(r.FailedChecks, CheckHasStaleBranches)
-	}
+	addFailedCheck(CheckTooManyBranches, r.BranchCount > maxBranches)
+	addFailedCheck(CheckHasStaleBranches, r.StaleBranchCount > 0)
+
 	// Tag count threshold (0 = use default).
 	maxTags := opts.MaxTags
 	if maxTags == 0 {
 		maxTags = DefaultMaxTags
 	}
-	if r.TagCount > maxTags {
-		r.FailedChecks = append(r.FailedChecks, CheckTooManyTags)
-	}
+	addFailedCheck(CheckTooManyTags, r.TagCount > maxTags)
 
 	return r
 }

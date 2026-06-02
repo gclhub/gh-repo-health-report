@@ -87,44 +87,73 @@ func formatTable(results []*checks.Result, w io.Writer) error {
 			r.SizeKB,
 		)
 	}
-	return tw.Flush()
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+
+	// Show skipped checks summary if any profiles are active
+	hasSkipped := false
+	for _, r := range results {
+		if len(r.SkippedChecks) > 0 {
+			hasSkipped = true
+			break
+		}
+	}
+
+	if hasSkipped {
+		fmt.Fprintln(w, "\nNote: Some checks were skipped due to policy profiles.")
+		for _, r := range results {
+			if len(r.SkippedChecks) > 0 {
+				fmt.Fprintf(w, "  %s: %d checks skipped\n", r.Repository.FullName, len(r.SkippedChecks))
+			}
+		}
+	}
+
+	return nil
 }
 
 type jsonRow struct {
-	Repo                       string `json:"repo"`
-	Stale                      bool   `json:"stale"`
-	Description                bool   `json:"has_description"`
-	Topics                     int    `json:"topics_count"`
-	Readme                     bool   `json:"has_readme"`
-	License                    bool   `json:"has_license"`
-	CodeOfConduct              bool   `json:"has_code_of_conduct"`
-	Codeowners                 bool   `json:"has_codeowners"`
-	Security                   bool   `json:"has_security"`
-	Contributing               bool   `json:"has_contributing"`
-	IssueTemplates             bool   `json:"has_issue_templates"`
-	PRTemplate                 bool   `json:"has_pr_template"`
-	Issues                     bool   `json:"has_issues"`
-	Wiki                       bool   `json:"has_wiki"`
-	Projects                   bool   `json:"has_projects"`
-	Dependabot                 bool   `json:"has_dependabot"`
-	CIWorkflows                bool   `json:"has_ci_workflows"`
-	DefaultBranchProtected     bool   `json:"default_branch_protected"`
-	HasRulesets                bool   `json:"has_rulesets"`
-	VulnerabilityAlertsEnabled bool   `json:"vulnerability_alerts_enabled"`
-	VulnerabilityAlertsUnknown bool   `json:"vulnerability_alerts_unknown"`
-	SecretScanningEnabled      bool   `json:"secret_scanning_enabled"`
-	SecretScanningUnknown      bool   `json:"secret_scanning_unknown"`
-	PushProtectionEnabled      bool   `json:"push_protection_enabled"`
-	PushProtectionUnknown      bool   `json:"push_protection_unknown"`
-	DeleteBranchOnMerge        bool   `json:"delete_branch_on_merge"`
-	BranchCount                int    `json:"branch_count"`
-	StaleBranchCount           int    `json:"stale_branch_count"`
-	TagCount                   int    `json:"tag_count"`
-	OpenIssueCount             int    `json:"open_issue_count"`
-	SizeKB                     int    `json:"size_kb"`
+	Repo                       string   `json:"repo"`
+	Stale                      bool     `json:"stale"`
+	Description                bool     `json:"has_description"`
+	Topics                     int      `json:"topics_count"`
+	Readme                     bool     `json:"has_readme"`
+	License                    bool     `json:"has_license"`
+	CodeOfConduct              bool     `json:"has_code_of_conduct"`
+	Codeowners                 bool     `json:"has_codeowners"`
+	Security                   bool     `json:"has_security"`
+	Contributing               bool     `json:"has_contributing"`
+	IssueTemplates             bool     `json:"has_issue_templates"`
+	PRTemplate                 bool     `json:"has_pr_template"`
+	Issues                     bool     `json:"has_issues"`
+	Wiki                       bool     `json:"has_wiki"`
+	Projects                   bool     `json:"has_projects"`
+	Dependabot                 bool     `json:"has_dependabot"`
+	CIWorkflows                bool     `json:"has_ci_workflows"`
+	DefaultBranchProtected     bool     `json:"default_branch_protected"`
+	HasRulesets                bool     `json:"has_rulesets"`
+	VulnerabilityAlertsEnabled bool     `json:"vulnerability_alerts_enabled"`
+	VulnerabilityAlertsUnknown bool     `json:"vulnerability_alerts_unknown"`
+	SecretScanningEnabled      bool     `json:"secret_scanning_enabled"`
+	SecretScanningUnknown      bool     `json:"secret_scanning_unknown"`
+	PushProtectionEnabled      bool     `json:"push_protection_enabled"`
+	PushProtectionUnknown      bool     `json:"push_protection_unknown"`
+	DeleteBranchOnMerge        bool     `json:"delete_branch_on_merge"`
+	BranchCount                int      `json:"branch_count"`
+	StaleBranchCount           int      `json:"stale_branch_count"`
+	TagCount                   int      `json:"tag_count"`
+	OpenIssueCount             int      `json:"open_issue_count"`
+	SizeKB                     int      `json:"size_kb"`
+	SkippedChecks              []string `json:"skipped_checks,omitempty"`
 }
 
 func toRow(r *checks.Result) jsonRow {
+	// Convert skipped checks to list of names
+	skippedNames := make([]string, len(r.SkippedChecks))
+	for i, sc := range r.SkippedChecks {
+		skippedNames[i] = sc.Name
+	}
+
 	return jsonRow{
 		Repo:                       r.Repository.FullName,
 		Stale:                      r.Stale,
@@ -157,6 +186,7 @@ func toRow(r *checks.Result) jsonRow {
 		TagCount:                   r.TagCount,
 		OpenIssueCount:             r.OpenIssueCount,
 		SizeKB:                     r.SizeKB,
+		SkippedChecks:              skippedNames,
 	}
 }
 
