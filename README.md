@@ -88,7 +88,7 @@ gh repo-health-report --org myorg
 When using `--profile auto`, the tool automatically selects the appropriate profile based on repository metadata:
 
 1. **Archived status** → `archived` profile
-2. **Topics** (first match wins):
+2. **Topics** (category priority order, regardless of topic list order):
    - `prototype`, `experimental`, `poc`, `spike` → `prototype`
    - `library`, `package`, `npm-package`, `gem`, `pypi` → `open-source`
    - `service`, `api`, `microservice` → `internal-service`
@@ -98,7 +98,7 @@ When using `--profile auto`, the tool automatically selects the appropriate prof
 
 ### Config File Format
 
-Create `.gh-repo-health-report.yml` (or `.json`) in your current directory or home directory:
+Create `.gh-repo-health-report.yml`, `.gh-repo-health-report.yaml`, or `.gh-repo-health-report.json` in your current directory or home directory:
 
 ```yaml
 default_profile: internal-service

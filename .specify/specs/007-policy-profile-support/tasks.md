@@ -64,13 +64,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T010 [P] [US1] Define `ProfileOpenSource` variable with all 28 checks mapped to enforcement levels in `internal/checks/profile.go`
-- [ ] T011 [P] [US1] Define `ProfileInternalService` variable with all 28 checks mapped to enforcement levels in `internal/checks/profile.go`
-- [ ] T012 [P] [US1] Define `ProfileApplication` variable with all 28 checks mapped to enforcement levels in `internal/checks/profile.go`
-- [ ] T013 [P] [US1] Define `ProfileArchived` variable with all 28 checks mapped to enforcement levels in `internal/checks/profile.go`
-- [ ] T014 [P] [US1] Define `ProfilePrototype` variable with all 28 checks mapped to enforcement levels in `internal/checks/profile.go`
+- [ ] T010 [P] [US1] Define `ProfileOpenSource` variable with all existing checks mapped to enforcement levels in `internal/checks/profile.go`
+- [ ] T011 [P] [US1] Define `ProfileInternalService` variable with all existing checks mapped to enforcement levels in `internal/checks/profile.go`
+- [ ] T012 [P] [US1] Define `ProfileApplication` variable with all existing checks mapped to enforcement levels in `internal/checks/profile.go`
+- [ ] T013 [P] [US1] Define `ProfileArchived` variable with all existing checks mapped to enforcement levels in `internal/checks/profile.go`
+- [ ] T014 [P] [US1] Define `ProfilePrototype` variable with all existing checks mapped to enforcement levels in `internal/checks/profile.go`
 - [ ] T015 [US1] Implement `GetProfile(name string) *Profile` function that returns predefined profiles or nil in `internal/checks/profile.go`
-- [ ] T016 [P] [US1] Add table-driven test in `internal/checks/profile_test.go` to verify each predefined profile has all 28 checks defined
+- [ ] T016 [P] [US1] Add table-driven test in `internal/checks/profile_test.go` to verify each predefined profile has all existing checks defined
 - [ ] T017 [P] [US1] Add test in `internal/checks/profile_test.go` to verify `GetProfile()` returns correct profile for valid names
 - [ ] T018 [P] [US1] Add test in `internal/checks/profile_test.go` to verify `GetProfile()` returns nil for invalid names
 - [ ] T019 [US1] Update `Evaluate()` function in `internal/checks/checks.go` to handle nil profile (backward compatibility path)

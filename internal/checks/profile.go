@@ -224,28 +224,22 @@ func DetectProfile(repo *api.Repository) *Profile {
 		return &ProfileArchived
 	}
 
-	// Priority 2: Topic matching
+	// Priority 2: Topic matching by category priority
+	topics := make(map[string]struct{}, len(repo.Topics))
 	for _, topic := range repo.Topics {
-		topicLower := strings.ToLower(topic)
-		// Prototype topics
-		if topicLower == "prototype" || topicLower == "experimental" ||
-			topicLower == "poc" || topicLower == "spike" {
-			return &ProfilePrototype
-		}
-		// Library topics
-		if topicLower == "library" || topicLower == "package" ||
-			topicLower == "npm-package" || topicLower == "gem" || topicLower == "pypi" {
-			return &ProfileOpenSource
-		}
-		// Service topics
-		if topicLower == "service" || topicLower == "api" || topicLower == "microservice" {
-			return &ProfileInternalService
-		}
-		// Application topics
-		if topicLower == "app" || topicLower == "webapp" ||
-			topicLower == "mobile-app" || topicLower == "desktop" {
-			return &ProfileApplication
-		}
+		topics[strings.ToLower(topic)] = struct{}{}
+	}
+	if hasTopic(topics, "prototype", "experimental", "poc", "spike") {
+		return &ProfilePrototype
+	}
+	if hasTopic(topics, "library", "package", "npm-package", "gem", "pypi") {
+		return &ProfileOpenSource
+	}
+	if hasTopic(topics, "service", "api", "microservice") {
+		return &ProfileInternalService
+	}
+	if hasTopic(topics, "app", "webapp", "mobile-app", "desktop") {
+		return &ProfileApplication
 	}
 
 	// Priority 3: Visibility check
@@ -255,4 +249,13 @@ func DetectProfile(repo *api.Repository) *Profile {
 
 	// Priority 4: Fallback for private repositories
 	return &ProfileInternalService
+}
+
+func hasTopic(topics map[string]struct{}, names ...string) bool {
+	for _, name := range names {
+		if _, ok := topics[name]; ok {
+			return true
+		}
+	}
+	return false
 }

@@ -81,7 +81,7 @@ func rootCmd() *cobra.Command {
 				}
 
 				if cfg != nil && cfg.DefaultProfile != "" {
-					if cfg.DefaultProfile == "auto" {
+					if strings.EqualFold(cfg.DefaultProfile, "auto") {
 						// Auto mode from config
 						autoMode = true
 					} else {
@@ -172,9 +172,9 @@ func rootCmd() *cobra.Command {
 
 			// --fail-on logic
 			if failOn != "" {
-				failChecks := strings.Split(failOn, ",")
+				failChecks := splitCheckNames(failOn)
 				for _, r := range results {
-					if shouldFail(r.FailedChecks, failChecks) {
+					if shouldFail(r, failChecks, maxBranches, maxTags) {
 						os.Exit(1)
 					}
 				}
@@ -232,17 +232,97 @@ func parseSince(s string) (time.Duration, error) {
 	}
 }
 
-// shouldFail returns true if any of the wanted checks are in failed.
-func shouldFail(failed, wanted []string) bool {
-	for _, w := range wanted {
-		if w == "any" && len(failed) > 0 {
-			return true
+func splitCheckNames(s string) []string {
+	parts := strings.Split(s, ",")
+	checks := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if check := strings.TrimSpace(part); check != "" {
+			checks = append(checks, check)
 		}
-		for _, f := range failed {
-			if f == w {
+	}
+	return checks
+}
+
+// shouldFail returns true if any wanted check fails.
+func shouldFail(r *checks.Result, wanted []string, maxBranches, maxTags int) bool {
+	for _, w := range wanted {
+		if w == "any" {
+			if len(r.FailedChecks) > 0 {
 				return true
 			}
+			continue
+		}
+		if checkFailed(r, w, maxBranches, maxTags) {
+			return true
 		}
 	}
 	return false
+}
+
+func checkFailed(r *checks.Result, checkName string, maxBranches, maxTags int) bool {
+	switch checkName {
+	case checks.CheckStale:
+		return r.Stale
+	case checks.CheckHasDescription:
+		return !r.HasDescription
+	case checks.CheckHasHomepage:
+		return !r.HasHomepage
+	case checks.CheckMissingReadme:
+		return !r.HasReadme
+	case checks.CheckMissingLicense:
+		return !r.HasLicense
+	case checks.CheckMissingCodeOfConduct:
+		return !r.HasCodeOfConduct
+	case checks.CheckMissingCodeowners:
+		return !r.HasCodeowners
+	case checks.CheckMissingSecurityMd:
+		return !r.HasSecurity
+	case checks.CheckMissingContributing:
+		return !r.HasContributing
+	case checks.CheckMissingIssueTemplates:
+		return !r.HasIssueTemplates
+	case checks.CheckMissingPRTemplate:
+		return !r.HasPRTemplate
+	case checks.CheckHasIssues:
+		return !r.HasIssues
+	case checks.CheckHasProjects:
+		return !r.HasProjects
+	case checks.CheckHasWiki:
+		return !r.HasWiki
+	case checks.CheckMissingDependabot:
+		return !r.HasDependabot
+	case checks.CheckMissingCI:
+		return !r.HasCIWorkflows
+	case checks.CheckNoBranchProtection:
+		return !r.DefaultBranchProtected
+	case checks.CheckNoRulesets:
+		return !r.HasRulesets
+	case checks.CheckNoVulnerabilityAlerts:
+		return !r.VulnerabilityAlertsUnknown && !r.VulnerabilityAlertsEnabled
+	case checks.CheckNoSecretScanning:
+		return !r.SecretScanningUnknown && !r.SecretScanningEnabled
+	case checks.CheckNoPushProtection:
+		return !r.PushProtectionUnknown && !r.PushProtectionEnabled
+	case checks.CheckNoDeleteBranchOnMerge:
+		return !r.DeleteBranchOnMerge
+	case checks.CheckTooManyBranches:
+		if maxBranches == 0 {
+			maxBranches = checks.DefaultMaxBranches
+		}
+		return r.BranchCount > maxBranches
+	case checks.CheckHasStaleBranches:
+		return r.StaleBranchCount > 0
+	case checks.CheckTooManyTags:
+		if maxTags == 0 {
+			maxTags = checks.DefaultMaxTags
+		}
+		return r.TagCount > maxTags
+	default:
+		for _, failed := range r.FailedChecks {
+			if failed == checkName {
+				return true
+			}
+		}
+		return false
+	}
 }

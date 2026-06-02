@@ -25,7 +25,7 @@ As a platform engineering lead, I want to apply different health check expectati
 
 4. **Given** a user audits an archived repository, **When** they run `gh repo-health-report --profile archived --repo owner/legacy-project`, **Then** the health report requires README and LICENSE for documentation, but ignores staleness, CI, branch protection, and security scanning checks.
 
-5. **Given** a user runs the tool without specifying a profile, **When** they execute `gh repo-health-report --repo owner/repo`, **Then** all 28 existing checks are evaluated with existing behavior (backward compatibility).
+5. **Given** a user runs the tool without specifying a profile, **When** they execute `gh repo-health-report --repo owner/repo`, **Then** all existing checks are evaluated with existing behavior (backward compatibility).
 
 ---
 

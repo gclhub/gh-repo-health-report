@@ -128,6 +128,30 @@ func TestDiscoverConfigCurrentDir(t *testing.T) {
 	}
 }
 
+// TestDiscoverConfigCurrentDirYAML verifies discovery of .yaml config files.
+func TestDiscoverConfigCurrentDirYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)
+
+	yamlContent := `default_profile: application`
+	if err := os.WriteFile(".gh-repo-health-report.yaml", []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to create test config: %v", err)
+	}
+
+	cfg, err := DiscoverConfig()
+	if err != nil {
+		t.Fatalf("DiscoverConfig failed: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("Expected config, got nil")
+	}
+	if cfg.DefaultProfile != "application" {
+		t.Errorf("Expected default_profile 'application', got %q", cfg.DefaultProfile)
+	}
+}
+
 // TestDiscoverConfigPrecedence verifies that current directory takes precedence.
 func TestDiscoverConfigPrecedence(t *testing.T) {
 	tmpDir := t.TempDir()

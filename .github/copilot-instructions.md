@@ -9,13 +9,17 @@ Auto-generated from all feature plans. Last updated: 2026-06-01
 ## Project Structure
 
 ```text
-src/
-tests/
+cmd/gh-repo-health-report/
+internal/
+  api/
+  checks/
+  formatter/
+*_test.go files colocated with source files
 ```
 
 ## Commands
 
-# Add commands for Go 1.21+
+go test ./...
 
 ## Code Style
 

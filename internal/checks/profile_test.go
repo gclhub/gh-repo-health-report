@@ -6,9 +6,9 @@ import (
 	"github.com/gclhub/gh-repo-health-report/internal/api"
 )
 
-// TestProfileDefinitions verifies that each predefined profile has all 26 checks defined.
+// TestProfileDefinitions verifies that each predefined profile has all check constants defined.
 func TestProfileDefinitions(t *testing.T) {
-	// List of all 26 check constants
+	// List of all check constants
 	allChecks := []string{
 		CheckHasDescription,
 		CheckHasHomepage,
@@ -159,8 +159,8 @@ func TestDetectProfile(t *testing.T) {
 			expected: "internal-service",
 		},
 		{
-			name:     "topic conflict - first wins (prototype before library)",
-			repo:     &api.Repository{Topics: []string{"prototype", "library"}, Private: true},
+			name:     "topic conflict - prototype priority wins after library",
+			repo:     &api.Repository{Topics: []string{"library", "prototype"}, Private: true},
 			expected: "prototype",
 		},
 		{

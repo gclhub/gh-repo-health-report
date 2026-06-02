@@ -141,6 +141,9 @@ func TestFormatJSON(t *testing.T) {
 	if rows[0]["repo"] != "owner/repo" {
 		t.Errorf("expected repo=owner/repo, got %v", rows[0]["repo"])
 	}
+	if _, ok := rows[0]["skipped_checks"]; ok {
+		t.Errorf("JSON should omit skipped_checks when there are no skipped checks")
+	}
 	for _, field := range []string{
 		"has_readme", "has_code_of_conduct", "has_codeowners",
 		"has_issue_templates", "has_pr_template",
@@ -162,6 +165,37 @@ func TestFormatJSON(t *testing.T) {
 	// SecretScanningUnknown is true → should be true in JSON
 	if rows[0]["secret_scanning_unknown"] != true {
 		t.Errorf("expected secret_scanning_unknown=true, got %v", rows[0]["secret_scanning_unknown"])
+	}
+}
+
+func TestFormatJSON_SkippedChecksIncludeReasons(t *testing.T) {
+	result := sampleResults()[0]
+	result.SkippedChecks = []checks.SkippedCheck{
+		{Name: checks.CheckMissingCodeowners, Reason: "Ignored by profile: open-source"},
+	}
+
+	var buf bytes.Buffer
+	if err := formatter.Format([]*checks.Result{result}, "json", &buf); err != nil {
+		t.Fatalf("Format json error: %v", err)
+	}
+
+	var rows []struct {
+		SkippedChecks []struct {
+			Check  string `json:"check"`
+			Reason string `json:"reason"`
+		} `json:"skipped_checks"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &rows); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(rows) != 1 || len(rows[0].SkippedChecks) != 1 {
+		t.Fatalf("expected one skipped check, got %#v", rows)
+	}
+	if rows[0].SkippedChecks[0].Check != checks.CheckMissingCodeowners {
+		t.Errorf("expected skipped check name %q, got %q", checks.CheckMissingCodeowners, rows[0].SkippedChecks[0].Check)
+	}
+	if rows[0].SkippedChecks[0].Reason != "Ignored by profile: open-source" {
+		t.Errorf("expected skipped check reason, got %q", rows[0].SkippedChecks[0].Reason)
 	}
 }
 

@@ -45,6 +45,7 @@ func DiscoverConfig() (*Config, error) {
 	// Search order: current directory, then home directory
 	searchPaths := []string{
 		".gh-repo-health-report.yml",
+		".gh-repo-health-report.yaml",
 		".gh-repo-health-report.json",
 	}
 
@@ -52,6 +53,7 @@ func DiscoverConfig() (*Config, error) {
 	if home, err := os.UserHomeDir(); err == nil {
 		searchPaths = append(searchPaths,
 			filepath.Join(home, ".gh-repo-health-report.yml"),
+			filepath.Join(home, ".gh-repo-health-report.yaml"),
 			filepath.Join(home, ".gh-repo-health-report.json"),
 		)
 	}
